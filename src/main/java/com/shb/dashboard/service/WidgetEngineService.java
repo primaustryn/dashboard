@@ -3,6 +3,7 @@ package com.shb.dashboard.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.shb.dashboard.dao.DynamicWidgetDao;
 import com.shb.dashboard.exception.WidgetNotFoundException;
 import com.shb.dashboard.model.WidgetMeta;
@@ -16,19 +17,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Core orchestrator of the metadata-driven engine. Three responsibilities:
+ * Core orchestrator of the metadata-driven engine.
  *
- *   1. Read widget definition (SQL + UI schema) from the Meta DB.
- *   2. Route to the correct target DataSource via the registry.
- *   3. Execute the SQL safely and assemble the unified WidgetResponse.
+ * Widget definitions are now stored across three VARCHAR-only tables:
+ *   WIDGET_MASTER  – one row per widget (widget_id, target_db, is_active)
+ *   WIDGET_QUERY   – query SQL in ordered ≤4 KB chunks
+ *   WIDGET_CONFIG  – EAV config; each top-level JSON key as one row
  *
- * No widget-specific logic lives here - all behaviour is data-driven from
- * WIDGET_MASTER, so a new widget type requires only a database INSERT.
+ * fetchWidgetMeta() reassembles the full WidgetMeta from those three tables.
+ * Everything downstream (DataSource routing, query execution, response assembly)
+ * is unchanged — adding a new widget still requires only database inserts.
  */
 @Service
 public class WidgetEngineService {
 
-    // Auto-configured by Spring Boot using the @Primary (meta) DataSource.
     private final JdbcTemplate metaJdbcTemplate;
     private final DynamicWidgetDao dynamicWidgetDao;
     private final Map<String, DataSource> dataSourceRegistry;
@@ -57,21 +59,47 @@ public class WidgetEngineService {
 
     // ---- Private helpers ----------------------------------------------------
 
+    /**
+     * Reassembles WidgetMeta from the three EAV tables in three focused queries.
+     */
     private WidgetMeta fetchWidgetMeta(String widgetId) {
-        // Plain string concat avoids text-block syntax (requires Java 15+)
-        String sql = "SELECT widget_id, target_db, query_sql, dynamic_config"
-                   + " FROM WIDGET_MASTER"
-                   + " WHERE widget_id = ? AND is_active = TRUE";
+        // 1. Verify the widget exists and is active; retrieve targetDb.
+        String targetDb;
         try {
-            return metaJdbcTemplate.queryForObject(sql, (rs, row) -> new WidgetMeta(
-                    rs.getString("widget_id"),
-                    rs.getString("target_db"),
-                    rs.getString("query_sql"),
-                    rs.getString("dynamic_config")
-            ), widgetId);
+            targetDb = metaJdbcTemplate.queryForObject(
+                "SELECT target_db FROM WIDGET_MASTER WHERE widget_id = ? AND is_active = TRUE",
+                String.class, widgetId);
         } catch (EmptyResultDataAccessException ex) {
             throw new WidgetNotFoundException(widgetId);
         }
+
+        // 2. Reassemble query SQL from ordered chunks.
+        List<Map<String, Object>> chunks = metaJdbcTemplate.queryForList(
+            "SELECT chunk_text FROM WIDGET_QUERY WHERE widget_id = ? ORDER BY chunk_order",
+            widgetId);
+        StringBuilder sqlBuilder = new StringBuilder();
+        for (Map<String, Object> row : chunks) {
+            sqlBuilder.append(row.get("CHUNK_TEXT"));
+        }
+        String querySql = sqlBuilder.toString();
+
+        // 3. Reconstruct dynamicConfig JSON from EAV config entries.
+        List<Map<String, Object>> configRows = metaJdbcTemplate.queryForList(
+            "SELECT config_key, config_val FROM WIDGET_CONFIG WHERE widget_id = ? ORDER BY config_key",
+            widgetId);
+        ObjectNode configNode = objectMapper.createObjectNode();
+        for (Map<String, Object> row : configRows) {
+            String key = (String) row.get("CONFIG_KEY");
+            String val = (String) row.get("CONFIG_VAL");
+            try {
+                configNode.set(key, objectMapper.readTree(val));
+            } catch (JsonProcessingException ex) {
+                configNode.put(key, val); // fallback: store as plain string
+            }
+        }
+        String dynamicConfig = configNode.toString();
+
+        return new WidgetMeta(widgetId, targetDb, querySql, dynamicConfig);
     }
 
     private JsonNode parseUiSchema(String widgetId, String dynamicConfig) {
@@ -79,7 +107,7 @@ public class WidgetEngineService {
             return objectMapper.readTree(dynamicConfig);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException(
-                    "Invalid JSON in WIDGET_MASTER.dynamic_config for widget: " + widgetId, ex);
+                    "Reconstructed dynamicConfig is not valid JSON for widget: " + widgetId, ex);
         }
     }
 

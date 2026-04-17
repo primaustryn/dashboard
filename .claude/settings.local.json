@@ -34,7 +34,19 @@
       "WebFetch(domain:cdn.jsdelivr.net)",
       "WebFetch(domain:github.com)",
       "Bash(curl -sI \"https://echarts.apache.org/examples/data/asset/geo/world.json\")",
-      "Bash(curl -sI \"https://raw.githubusercontent.com/apache/echarts-www/master/asset/map/json/world.json\")"
+      "Bash(curl -sI \"https://raw.githubusercontent.com/apache/echarts-www/master/asset/map/json/world.json\")",
+      "Bash(./gradlew compileJava)",
+      "Bash(mvn compile *)",
+      "Bash(export JAVA_HOME=\"/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home\")",
+      "Bash(./mvnw clean *)",
+      "Bash(echo \"PID: $!\" sleep 8 grep -E \"Started|ERROR|Exception\" /tmp/dashboard-backend.log)",
+      "Bash(./setup.sh)",
+      "Bash(./setup-new-charts.sh)",
+      "Bash(python3 -c \"import sys,json; ws=json.load\\(sys.stdin\\); print\\(f'{len\\(ws\\)} widgets'\\); [print\\(' -', w['widgetId']\\) for w in ws]\")",
+      "Bash(curl -sf \"http://localhost:8081/api/v1/widgets/WD_SALES_REGION\")",
+      "Bash(python3 -c \"import sys,json; r=json.load\\(sys.stdin\\); print\\('uiSchema:', r['uiSchema']\\); print\\('rows:', len\\(r['data']\\)\\)\")",
+      "Bash(curl -sf \"http://localhost:8081/api/v1/widgets/WD_PORTFOLIO_RADAR\")",
+      "Bash(python3 -c \"import sys,json; r=json.load\\(sys.stdin\\); print\\('chart_type:', r['uiSchema']['chart_type']\\); print\\('indicators:', r['uiSchema']['indicators']\\); print\\('rows:', len\\(r['data']\\)\\)\")"
     ]
   }
 }

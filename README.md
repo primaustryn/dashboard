@@ -1,88 +1,197 @@
 # Metadata-Driven Dynamic Dashboard Engine
 
 A **zero-code-change** dashboard platform for air-gapped banking environments.  
-All widget behavior — SQL query, chart type, axes, title — lives in a database table (`WIDGET_MASTER`).  
-Adding a new widget requires **no Java or React code changes**: only an API call.
+Widget SQL, chart type, axes, and title all live in the database.  
+**Adding a new widget = API call only. No Java, no React rebuild.**
 
 ---
 
-## Architecture Overview
+## Table of Contents
+
+1. [Architecture](#architecture)
+2. [Quick Start](#quick-start)
+3. [Database Schema](#database-schema)
+4. [Registered Widgets](#registered-widgets)
+5. [How to Add a Widget](#how-to-add-a-widget)
+6. [How to Update a Widget](#how-to-update-a-widget)
+7. [How to Delete a Widget](#how-to-delete-a-widget)
+8. [Activate / Deactivate](#activate--deactivate)
+9. [uiSchema Reference — All 9 Chart Types](#uischema-reference--all-9-chart-types)
+10. [Admin API Reference](#admin-api-reference)
+11. [Data Ingestion API](#data-ingestion-api)
+12. [Data Flow](#data-flow)
+13. [Project Structure](#project-structure)
+14. [Adding a New Chart Type (Frontend)](#adding-a-new-chart-type-frontend)
+
+---
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Browser (React + ECharts)                                      │
-│  DashboardBoard → fetches widget list → renders each WidgetCard │
+│  Browser  (React + ECharts, Vite dev server on :5173)           │
+│  DashboardBoard → polls active widget list → renders WidgetCards│
 └────────────────────┬────────────────────────────────────────────┘
-                     │ HTTP /api/v1/...
+                     │ HTTP  /api/v1/...
 ┌────────────────────▼────────────────────────────────────────────┐
-│  Spring Boot (port 8081)                                        │
+│  Spring Boot  (port 8081)                                       │
 │                                                                 │
 │  WidgetEngineController                                         │
 │    └─ WidgetEngineService                                       │
-│         ├─ reads WIDGET_MASTER from Meta DB (H2: metadb)        │
-│         └─ executes query_sql against Target DB (H2: targetdb)  │
+│         ├─ reads widget metadata from Meta DB (H2: metadb)      │
+│         └─ executes querySql against Target DB (H2: targetdb)   │
 │                                                                 │
-│  WidgetAdminController  — CRUD for WIDGET_MASTER rows           │
+│  WidgetAdminController  — CRUD for widget definitions           │
 │  GenericDataController  — insert rows into any target table     │
 │  TargetSchemaController — execute DDL on target DB              │
 └─────────────────────────────────────────────────────────────────┘
+         │                          │
+┌────────▼──────────┐    ┌──────────▼──────────┐
+│  Meta DB (metadb) │    │ Target DB (targetdb) │
+│  WIDGET_MASTER    │    │ SALES_SUMMARY        │
+│  WIDGET_QUERY     │    │ TRADE_SUMMARY        │
+│  WIDGET_CONFIG    │    │ RISK_SUMMARY         │
+└───────────────────┘    │ FX_RATE  …etc.       │
+                         └─────────────────────┘
 ```
 
 ### Two Databases
 
 | Database | H2 Name | Purpose |
 |----------|---------|---------|
-| **Meta DB** | `metadb` | Widget definitions (`WIDGET_MASTER`) |
-| **Target DB** | `targetdb` | Business data (sales, trades, risk, FX) |
+| **Meta DB** | `metadb` | Widget definitions (SQL, uiSchema, target routing) |
+| **Target DB** | `targetdb` | Business data (sales, trades, risk, FX, …) |
 
 ---
 
 ## Quick Start
 
+### Prerequisites
+
+- Java 21+
+- Node.js 18+
+- Backend not already running on port 8081
+
+### Steps
+
 ```bash
-# 1. Start the backend (Spring Boot on :8081)
+# Terminal 1 — Start the backend
 ./run.sh
 
-# 2. In another terminal — seed tables, data, and register all 6 widgets
+# Terminal 2 — Seed initial data and register the first 6 widgets
 ./setup.sh
 
-# 3. Start the frontend dev server (React on :5173)
-cd frontend && npm install && npm run dev
+# (Optional) Add 6 more chart-type widgets
+./setup-new-charts.sh
 
-# Open http://localhost:5173
+# Terminal 3 — Start the frontend dev server
+cd frontend && npm install && npm run dev
+```
+
+Open **http://localhost:5173**
+
+> **Map widget** (`WD_GLOBAL_MAP`) requires `world.json` in `frontend/public/`:
+> ```bash
+> curl -o frontend/public/world.json \
+>   "https://echarts.apache.org/examples/data/asset/geo/world.json"
+> ```
+
+---
+
+## Database Schema
+
+### Meta DB — Widget Definitions
+
+The meta DB uses three normalized, **VARCHAR-only** tables (no CLOB/TEXT).  
+This design is compatible with Oracle, Tibero, and any database that restricts column types.
+
+```
+WIDGET_MASTER (one row per widget)
+┌─────────────┬──────────────┬───────────────────────────────────────┐
+│ widget_id   │ VARCHAR(50)  │ PK — e.g. "WD_SALES_REGION"          │
+│ target_db   │ VARCHAR(100) │ DataSource registry key — "TARGET_DB" │
+│ is_active   │ BOOLEAN      │ true = shown on dashboard             │
+└─────────────┴──────────────┴───────────────────────────────────────┘
+
+WIDGET_QUERY (query SQL split into ≤4 KB chunks, FK → WIDGET_MASTER)
+┌─────────────┬──────────────┬───────────────────────────────────────┐
+│ widget_id   │ VARCHAR(50)  │ FK → WIDGET_MASTER                    │
+│ chunk_order │ INT          │ 0-based order for reassembly           │
+│ chunk_text  │ VARCHAR(4000)│ SQL fragment                          │
+└─────────────┴──────────────┴───────────────────────────────────────┘
+
+WIDGET_CONFIG (EAV — each top-level JSON key in uiSchema as one row)
+┌─────────────┬──────────────┬───────────────────────────────────────┐
+│ widget_id   │ VARCHAR(50)  │ FK → WIDGET_MASTER                    │
+│ config_key  │ VARCHAR(100) │ JSON key  — e.g. "chart_type"         │
+│ config_val  │ VARCHAR(1000)│ JSON value — e.g. "\"bar\""           │
+└─────────────┴──────────────┴───────────────────────────────────────┘
+```
+
+**How a widget is stored:**  
+`dynamicConfig = {"chart_type":"bar","title":"Sales by Region","xAxis":{...}}` is broken into rows:
+
+| config_key | config_val |
+|------------|------------|
+| `chart_type` | `"bar"` |
+| `title` | `"Sales by Region"` |
+| `xAxis` | `{"field":"region","label":"Region"}` |
+
+On read, the rows are reassembled back into the original JSON object — callers see no difference.
+
+### Target DB — Business Data
+
+```sql
+-- Always exists (schema.sql)
+SALES_SUMMARY (id, region, product, amount DECIMAL, sale_date DATE)
+
+-- Created by setup.sh at runtime
+TRADE_SUMMARY  (id, symbol, desk, notional DECIMAL, trade_date DATE)
+RISK_SUMMARY   (id, portfolio, var_amount DECIMAL, report_date DATE)
+FX_RATE        (id, pair, rate DECIMAL, rate_date DATE)
+
+-- Created by setup-new-charts.sh at runtime
+RISK_MATRIX        (id, desk, risk_type, score DECIMAL)
+PORTFOLIO_SCORES   (id, portfolio, market_score, credit_score, liquidity_score, op_score, compliance_score)
+VAR_UTILIZATION    (id, portfolio, utilization DECIMAL)
+ASSET_PERFORMANCE  (id, asset, risk_pct, return_pct, volume DECIMAL)
+PORTFOLIO_AUM      (id, region, asset_class, aum DECIMAL)
+GLOBAL_EXPOSURE    (id, country, exposure DECIMAL)
 ```
 
 ---
 
-## WIDGET_MASTER Schema
+## Registered Widgets
 
-Every widget is a single row in this table.
+After running both setup scripts, 12 widgets are active:
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `widget_id` | VARCHAR(50) PK | Unique identifier, e.g. `WD_SALES_REGION` |
-| `target_db` | VARCHAR(100) | DataSource key registered in `DataSourceConfig` |
-| `query_sql` | CLOB | SQL executed against the target DB (named params: `:param`) |
-| `dynamic_config` | CLOB | JSON — chart type, axes, title (the `uiSchema`) |
-| `is_active` | BOOLEAN | `true` = visible in dashboard; `false` = hidden |
+| Widget ID | Chart Type | Source Table | Description |
+|-----------|------------|--------------|-------------|
+| `WD_SALES_REGION` | bar | SALES_SUMMARY | Total sales amount by region |
+| `WD_SALES_PRODUCT` | pie | SALES_SUMMARY | Revenue share by product |
+| `WD_SALES_TREND` | line | SALES_SUMMARY | Monthly revenue trend |
+| `WD_TRADE_DESK` | pie | TRADE_SUMMARY | Notional by trading desk |
+| `WD_RISK_VAR` | bar | RISK_SUMMARY | Value at Risk by portfolio |
+| `WD_FX_TREND` | line | FX_RATE | USD/KRW exchange rate trend |
+| `WD_RISK_HEATMAP` | heatmap | RISK_MATRIX | Desk × risk type intensity matrix |
+| `WD_PORTFOLIO_RADAR` | radar | PORTFOLIO_SCORES | 5-axis risk profile per portfolio |
+| `WD_VAR_GAUGE` | gauge | VAR_UTILIZATION | VaR limit utilization % |
+| `WD_ASSET_SCATTER` | scatter | ASSET_PERFORMANCE | Risk vs return bubble chart |
+| `WD_AUM_TREEMAP` | treemap | PORTFOLIO_AUM | AUM by region / asset class |
+| `WD_GLOBAL_MAP` | map | GLOBAL_EXPOSURE | Global credit exposure choropleth |
 
 ---
 
-## How to Add a New Widget
+## How to Add a Widget
 
-### Step 1 — Create the table (if needed)
+Three steps: create a table (if needed), seed data, register the widget.
+
+### Step 1 — Create the table
 
 ```bash
 curl -s -X POST http://localhost:8081/api/v1/target/schema/execute \
   -H "Content-Type: application/json" \
-  -d '{
-    "sql": "CREATE TABLE IF NOT EXISTS MY_TABLE (
-              id        BIGINT AUTO_INCREMENT PRIMARY KEY,
-              category  VARCHAR(100) NOT NULL,
-              value     DECIMAL(20,2) NOT NULL,
-              txn_date  DATE NOT NULL
-            )"
-  }'
+  -d '{"sql": "CREATE TABLE IF NOT EXISTS MY_TABLE (id BIGINT AUTO_INCREMENT PRIMARY KEY, category VARCHAR(100) NOT NULL, value DECIMAL(20,2) NOT NULL, txn_date DATE NOT NULL)"}'
 ```
 
 ### Step 2 — Seed data
@@ -94,13 +203,14 @@ curl -s -X POST http://localhost:8081/api/v1/target/MY_TABLE/rows \
   -d '{"category": "Alpha", "value": 1500000, "txn_date": "2024-01-15"}'
 ```
 
-Batch (array):
+Batch:
 ```bash
 curl -s -X POST http://localhost:8081/api/v1/target/MY_TABLE/rows/batch \
   -H "Content-Type: application/json" \
   -d '[
     {"category": "Alpha", "value": 1500000, "txn_date": "2024-01-15"},
-    {"category": "Beta",  "value": 2300000, "txn_date": "2024-01-15"}
+    {"category": "Beta",  "value": 2300000, "txn_date": "2024-01-15"},
+    {"category": "Gamma", "value": 1100000, "txn_date": "2024-01-15"}
   ]'
 ```
 
@@ -110,28 +220,73 @@ curl -s -X POST http://localhost:8081/api/v1/target/MY_TABLE/rows/batch \
 curl -s -X POST http://localhost:8081/api/v1/admin/widgets \
   -H "Content-Type: application/json" \
   -d '{
-    "widgetId":    "WD_MY_WIDGET",
-    "targetDb":    "targetDataSource",
-    "querySql":    "SELECT category, SUM(value) AS total FROM MY_TABLE GROUP BY category",
-    "dynamicConfig": "{
-      \"chart_type\": \"bar\",
-      \"title\":      \"My Widget\",
-      \"xAxis\":      { \"field\": \"category\", \"label\": \"Category\" },
-      \"yAxis\":      { \"label\": \"Total Value\" },
-      \"series\":     [{ \"name\": \"Total\", \"valueField\": \"total\" }]
-    }"
+    "widgetId":      "WD_MY_WIDGET",
+    "targetDb":      "TARGET_DB",
+    "querySql":      "SELECT category, SUM(value) AS total FROM MY_TABLE GROUP BY category",
+    "dynamicConfig": "{\"chart_type\":\"bar\",\"title\":\"My Widget\",\"xAxis\":{\"field\":\"category\",\"label\":\"Category\"},\"yAxis\":{\"label\":\"Total Value\"},\"series\":[{\"name\":\"Total\",\"valueField\":\"total\"}]}"
   }'
 ```
 
-The widget appears in the dashboard **immediately** — no restart, no code change.
+The widget appears on the dashboard **immediately** — no server restart, no code change.
+
+> **Field name casing**: H2 returns column names in UPPERCASE. The frontend normalizes them to lowercase automatically, so `querySql` aliases should use lowercase (`total`, not `TOTAL`).
 
 ---
 
-## uiSchema Reference
+## How to Update a Widget
 
-The `dynamic_config` JSON field drives how the frontend renders each widget.
+`PUT` replaces `querySql`, `dynamicConfig`, and `targetDb` atomically.
 
-### Bar Chart
+```bash
+curl -s -X PUT http://localhost:8081/api/v1/admin/widgets/WD_MY_WIDGET \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targetDb":      "TARGET_DB",
+    "querySql":      "SELECT category, SUM(value) AS total FROM MY_TABLE WHERE txn_date >= '\''2024-02-01'\'' GROUP BY category",
+    "dynamicConfig": "{\"chart_type\":\"bar\",\"title\":\"My Widget (Feb+)\",\"xAxis\":{\"field\":\"category\",\"label\":\"Category\"},\"yAxis\":{\"label\":\"Value\"},\"series\":[{\"name\":\"Total\",\"valueField\":\"total\"}]}"
+  }'
+```
+
+The updated widget renders on next browser refresh.
+
+---
+
+## How to Delete a Widget
+
+Permanently removes the widget definition. Table data is **not** affected.
+
+```bash
+curl -s -X DELETE http://localhost:8081/api/v1/admin/widgets/WD_MY_WIDGET
+```
+
+---
+
+## Activate / Deactivate
+
+Deactivating hides the widget from the dashboard without deleting data or definition.
+
+```bash
+# Hide from dashboard
+curl -s -X PATCH http://localhost:8081/api/v1/admin/widgets/WD_MY_WIDGET/deactivate
+
+# Show again
+curl -s -X PATCH http://localhost:8081/api/v1/admin/widgets/WD_MY_WIDGET/activate
+
+# List only active widgets
+curl -s "http://localhost:8081/api/v1/admin/widgets?activeOnly=true"
+
+# List all widgets (active + inactive)
+curl -s "http://localhost:8081/api/v1/admin/widgets"
+```
+
+---
+
+## uiSchema Reference — All 9 Chart Types
+
+The `dynamicConfig` JSON (stored in `WIDGET_CONFIG`) drives frontend rendering.  
+Field names in `xAxis.field` / `valueField` / `nameField` etc. must match the lowercase column aliases in `querySql`.
+
+### bar
 
 ```json
 {
@@ -145,25 +300,31 @@ The `dynamic_config` JSON field drives how the frontend renders each widget.
 }
 ```
 
-The `field` / `valueField` values must match the column aliases in your `query_sql` (case-insensitive — H2 uppercase names are normalized to lowercase automatically).
+*Example query*: `SELECT region, SUM(amount) AS total_amount FROM SALES_SUMMARY GROUP BY region`
 
-### Pie Chart
+---
+
+### pie
 
 ```json
 {
   "chart_type": "pie",
-  "title": "Sales by Product",
+  "title": "Revenue by Product",
   "nameField":  "product",
   "valueField": "total_amount"
 }
 ```
 
-### Line Chart
+*Example query*: `SELECT product, SUM(amount) AS total_amount FROM SALES_SUMMARY GROUP BY product`
+
+---
+
+### line
 
 ```json
 {
   "chart_type": "line",
-  "title": "Sales Trend",
+  "title": "Monthly Revenue Trend",
   "xAxis": { "field": "sale_month", "label": "Month" },
   "yAxis": { "label": "Amount (USD)" },
   "series": [
@@ -172,88 +333,211 @@ The `field` / `valueField` values must match the column aliases in your `query_s
 }
 ```
 
----
-
-## Widget Lifecycle API
-
-### List all widgets
-
-```bash
-# All widgets
-curl http://localhost:8081/api/v1/admin/widgets
-
-# Active only
-curl "http://localhost:8081/api/v1/admin/widgets?activeOnly=true"
-```
-
-### Deactivate (hide from dashboard, data preserved)
-
-```bash
-curl -X PATCH http://localhost:8081/api/v1/admin/widgets/WD_MY_WIDGET/deactivate
-```
-
-### Activate (re-show)
-
-```bash
-curl -X PATCH http://localhost:8081/api/v1/admin/widgets/WD_MY_WIDGET/activate
-```
-
-### Update SQL or config
-
-```bash
-curl -X PUT http://localhost:8081/api/v1/admin/widgets/WD_MY_WIDGET \
-  -H "Content-Type: application/json" \
-  -d '{
-    "widgetId":      "WD_MY_WIDGET",
-    "targetDb":      "targetDataSource",
-    "querySql":      "SELECT category, SUM(value) AS total FROM MY_TABLE WHERE txn_date >= '\''2024-02-01'\'' GROUP BY category",
-    "dynamicConfig": "{\"chart_type\":\"bar\",\"title\":\"My Widget (Feb+)\",\"xAxis\":{\"field\":\"category\",\"label\":\"Category\"},\"yAxis\":{\"label\":\"Value\"},\"series\":[{\"name\":\"Total\",\"valueField\":\"total\"}]}"
-  }'
-```
-
-### Delete permanently
-
-```bash
-curl -X DELETE http://localhost:8081/api/v1/admin/widgets/WD_MY_WIDGET
-```
+*Example query*: `SELECT FORMATDATETIME(sale_date,'yyyy-MM') AS sale_month, SUM(amount) AS total_amount FROM SALES_SUMMARY GROUP BY sale_month ORDER BY sale_month`
 
 ---
 
-## Adding a New Chart Type (Frontend Engineers)
+### heatmap
 
-The only frontend code needed when a new chart type is introduced:
-
-**1. Create the chart component** in `frontend/src/components/charts/MyChart.jsx`:
-
-```jsx
-import EChartsWrapper from '../EChartsWrapper'
-
-export default function MyChart({ uiSchema, data }) {
-  const option = {
-    // build ECharts option from uiSchema + data
-  }
-  return <EChartsWrapper option={option} />
+```json
+{
+  "chart_type": "heatmap",
+  "title":      "Risk Score Matrix by Desk",
+  "xField":     "desk",
+  "yField":     "risk_type",
+  "valueField": "score",
+  "xLabel":     "Trading Desk",
+  "yLabel":     "Risk Category"
 }
 ```
 
-**2. Register it** in `frontend/src/components/WidgetRenderer.jsx`:
-
-```js
-import MyChart from './charts/MyChart'
-
-const CHART_REGISTRY = {
-  bar:    BarChart,
-  pie:    PieChart,
-  line:   LineChart,
-  mychart: MyChart,   // <-- add this line
-}
-```
-
-**That is the only frontend change.** Any widget using `"chart_type": "mychart"` in its `dynamic_config` will now render correctly.
+*Example query*: `SELECT desk, risk_type, score FROM RISK_MATRIX ORDER BY desk, risk_type`
 
 ---
 
-## Data Flow (Request Lifecycle)
+### radar
+
+```json
+{
+  "chart_type":  "radar",
+  "title":       "Portfolio Risk Profile",
+  "nameField":   "portfolio",
+  "indicators": [
+    { "name": "Market",      "max": 100 },
+    { "name": "Credit",      "max": 100 },
+    { "name": "Liquidity",   "max": 100 },
+    { "name": "Operational", "max": 100 },
+    { "name": "Compliance",  "max": 100 }
+  ],
+  "valueFields": ["market_score", "credit_score", "liquidity_score", "op_score", "compliance_score"]
+}
+```
+
+`indicators[i].name` labels each axis. `valueFields[i]` is the corresponding column alias from `querySql` (order must match).
+
+*Example query*: `SELECT portfolio, market_score, credit_score, liquidity_score, op_score, compliance_score FROM PORTFOLIO_SCORES ORDER BY portfolio`
+
+---
+
+### gauge
+
+```json
+{
+  "chart_type":  "gauge",
+  "title":       "VaR Limit Utilization",
+  "nameField":   "portfolio",
+  "valueField":  "utilization",
+  "max":         100,
+  "unit":        "%"
+}
+```
+
+Multiple rows → multiple gauges rendered side-by-side in a grid.
+
+*Example query*: `SELECT portfolio, utilization FROM VAR_UTILIZATION ORDER BY portfolio`
+
+---
+
+### scatter
+
+```json
+{
+  "chart_type":  "scatter",
+  "title":       "Risk vs Return (bubble = AUM)",
+  "xField":      "risk_pct",
+  "yField":      "return_pct",
+  "sizeField":   "volume",
+  "nameField":   "asset",
+  "xLabel":      "Risk (%)",
+  "yLabel":      "Return (%)"
+}
+```
+
+`sizeField` drives the bubble radius. `nameField` appears in the tooltip.
+
+*Example query*: `SELECT asset, risk_pct, return_pct, volume FROM ASSET_PERFORMANCE ORDER BY volume DESC`
+
+---
+
+### treemap
+
+```json
+{
+  "chart_type":  "treemap",
+  "title":       "AUM by Region & Asset Class",
+  "nameField":   "asset_class",
+  "valueField":  "aum",
+  "groupField":  "region"
+}
+```
+
+`groupField` creates the parent nodes. `nameField` is the leaf label.
+
+*Example query*: `SELECT region, asset_class, aum FROM PORTFOLIO_AUM ORDER BY region, aum DESC`
+
+---
+
+### map
+
+```json
+{
+  "chart_type":  "map",
+  "title":       "Global Credit Exposure",
+  "nameField":   "country",
+  "valueField":  "exposure"
+}
+```
+
+`nameField` values must match country names in the ECharts world GeoJSON exactly  
+(e.g. `"United States"`, `"South Korea"`, `"United Kingdom"`).
+
+Requires `frontend/public/world.json`:
+```bash
+curl -o frontend/public/world.json \
+  "https://echarts.apache.org/examples/data/asset/geo/world.json"
+```
+
+*Example query*: `SELECT country, exposure FROM GLOBAL_EXPOSURE ORDER BY exposure DESC`
+
+---
+
+## Admin API Reference
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/admin/widgets` | Register a new widget |
+| `GET` | `/api/v1/admin/widgets` | List all widgets (`?activeOnly=true` to filter) |
+| `PUT` | `/api/v1/admin/widgets/{widgetId}` | Replace querySql / dynamicConfig / targetDb |
+| `PATCH` | `/api/v1/admin/widgets/{widgetId}/activate` | Mark widget as active |
+| `PATCH` | `/api/v1/admin/widgets/{widgetId}/deactivate` | Mark widget as inactive (hidden) |
+| `DELETE` | `/api/v1/admin/widgets/{widgetId}` | Permanently remove widget definition |
+| `GET` | `/api/v1/widgets/{widgetId}` | Fetch widget data + uiSchema (used by frontend) |
+
+### Request body for POST and PUT
+
+```json
+{
+  "widgetId":      "WD_EXAMPLE",
+  "targetDb":      "TARGET_DB",
+  "querySql":      "SELECT col_a, col_b FROM MY_TABLE",
+  "dynamicConfig": "{\"chart_type\":\"bar\", ...}"
+}
+```
+
+> `widgetId` is required in POST. In PUT, only `targetDb` / `querySql` / `dynamicConfig` are updated.
+
+### Response from GET `/api/v1/widgets/{widgetId}`
+
+```json
+{
+  "widgetId": "WD_SALES_REGION",
+  "uiSchema": {
+    "chart_type": "bar",
+    "title": "Sales by Region",
+    "xAxis": { "field": "region", "label": "Region" },
+    "yAxis": { "label": "Amount (USD)" },
+    "series": [{ "name": "Total Sales", "valueField": "total_amount" }]
+  },
+  "data": [
+    { "region": "North", "total_amount": 26450000 },
+    { "region": "South", "total_amount": 25100000 }
+  ]
+}
+```
+
+---
+
+## Data Ingestion API
+
+### Execute DDL on target DB
+
+```
+POST /api/v1/target/schema/execute
+Body: { "sql": "CREATE TABLE ..." }
+```
+
+### Insert rows
+
+```
+POST /api/v1/target/{tableName}/rows
+Body: { "col1": "val1", "col2": 123 }
+
+POST /api/v1/target/{tableName}/rows/batch
+Body: [ { "col1": "val1" }, { "col1": "val2" } ]
+```
+
+### Read rows
+
+```
+GET /api/v1/target/{tableName}/rows
+Response: [ { "id": 1, "col1": "val1" }, ... ]
+```
+
+Table and column names are validated against `[A-Za-z][A-Za-z0-9_]{0,127}` to prevent SQL injection.
+
+---
+
+## Data Flow
 
 ```
 GET /api/v1/widgets/{widgetId}?param=value
@@ -263,16 +547,18 @@ GET /api/v1/widgets/{widgetId}?param=value
           │
           ▼
   WidgetEngineService
-    1. SELECT * FROM WIDGET_MASTER WHERE widget_id = ? AND is_active = TRUE
-       → WidgetMeta { targetDb, querySql, dynamicConfig }
-    2. Resolve DataSource from registry using targetDb key
-    3. Execute querySql against target DataSource (named params substituted)
-    4. Return WidgetResponse { widgetId, uiSchema, data[] }
+    1. WIDGET_MASTER  → verify widget exists + is_active, get targetDb
+    2. WIDGET_QUERY   → reassemble querySql from chunks (ORDER BY chunk_order)
+    3. WIDGET_CONFIG  → rebuild dynamicConfig JSON from EAV rows
+    4. Resolve DataSource from registry using targetDb key
+    5. Execute querySql against target DataSource (named params :param substituted)
+    6. Return WidgetResponse { widgetId, uiSchema, data[] }
           │
           ▼
   Frontend: WidgetRenderer
     - Reads uiSchema.chart_type → looks up CHART_REGISTRY
-    - Passes { uiSchema, data } to the matching chart component
+    - Passes { uiSchema, data } to matching chart component
+    - Column names normalized to lowercase before chart rendering
 ```
 
 ---
@@ -281,61 +567,119 @@ GET /api/v1/widgets/{widgetId}?param=value
 
 ```
 dashboard/
-├── setup.sh                              # Full setup + lifecycle demo script
-├── run.sh                                # Start Spring Boot
+├── run.sh                            # Start Spring Boot (ensures Java 21)
+├── setup.sh                          # Create tables → seed data → register 6 widgets
+│                                     #   ./setup.sh scenarios  — lifecycle demo
+├── setup-new-charts.sh               # Register 6 more chart-type widgets
+│                                     #   ./setup-new-charts.sh reset     — re-seed
+│                                     #   ./setup-new-charts.sh teardown  — remove widgets
 │
 ├── src/main/java/com/shb/dashboard/
 │   ├── config/
-│   │   └── DataSourceConfig.java         # Dual H2 datasource wiring
+│   │   ├── DataSourceConfig.java     # Dual H2 datasource + dataSourceRegistry map
+│   │   └── WebConfig.java            # CORS configuration
 │   ├── controller/
 │   │   ├── WidgetEngineController.java   # GET /api/v1/widgets/{id}
 │   │   ├── WidgetAdminController.java    # CRUD /api/v1/admin/widgets
 │   │   ├── GenericDataController.java    # /api/v1/target/{table}/rows
 │   │   └── TargetSchemaController.java   # POST /api/v1/target/schema/execute
 │   ├── service/
-│   │   ├── WidgetEngineService.java      # Core orchestrator
-│   │   ├── WidgetDefinitionService.java  # Widget lifecycle logic
-│   │   └── GenericDataService.java       # Generic row insertion
-│   └── dao/
-│       ├── DynamicWidgetDao.java         # Executes query_sql on target DB
-│       ├── WidgetDefinitionDao.java      # WIDGET_MASTER CRUD
-│       └── GenericRowDao.java            # Dynamic INSERT builder
+│   │   ├── WidgetEngineService.java      # Core orchestrator (reads 3 meta tables)
+│   │   ├── WidgetDefinitionService.java  # Widget CRUD logic
+│   │   └── GenericDataService.java       # Dynamic row insertion
+│   ├── dao/
+│   │   ├── WidgetDefinitionDao.java      # 3-table EAV read/write (MASTER+QUERY+CONFIG)
+│   │   ├── DynamicWidgetDao.java         # Executes querySql on target DataSource
+│   │   └── GenericRowDao.java            # Dynamic INSERT builder
+│   ├── model/
+│   │   ├── WidgetDefinition.java         # API contract (request/response body)
+│   │   ├── WidgetMeta.java               # Internal record (targetDb, querySql, config)
+│   │   └── WidgetResponse.java           # API response (widgetId, uiSchema, data)
+│   └── exception/
+│       ├── WidgetNotFoundException.java
+│       └── GlobalExceptionHandler.java
 │
 ├── src/main/resources/
-│   ├── db/meta/schema.sql                # WIDGET_MASTER DDL
-│   └── application.yml                   # Datasource + port config
+│   ├── db/meta/schema.sql            # WIDGET_MASTER + WIDGET_QUERY + WIDGET_CONFIG DDL
+│   ├── db/target/schema.sql          # SALES_SUMMARY DDL
+│   └── application.yml               # Ports, dual-datasource URLs, H2 console
 │
 └── frontend/src/
-    ├── pages/DashboardBoard.jsx          # Fetches widget list, renders cards
-    ├── components/
-    │   ├── WidgetRenderer.jsx            # CHART_REGISTRY dispatch
-    │   └── charts/
-    │       ├── BarChart.jsx
-    │       ├── PieChart.jsx
-    │       └── LineChart.jsx
+    ├── api/widgetApi.js              # Axios client (fetches widget list + data; lowercases keys)
     ├── hooks/
-    │   ├── useWidgetList.js              # GET /admin/widgets?activeOnly=true
-    │   └── useWidget.js                  # GET /widgets/{id}
-    └── api/widgetApi.js                  # Axios client + lowercase normalization
+    │   ├── useWidgetList.js          # GET /admin/widgets?activeOnly=true
+    │   └── useWidget.js              # GET /widgets/{id}
+    ├── pages/
+    │   └── DashboardBoard.jsx        # Responsive grid; renders WidgetCard per active widget
+    └── components/
+        ├── WidgetRenderer.jsx        # CHART_REGISTRY dispatch on uiSchema.chart_type
+        ├── EChartsWrapper.jsx        # Shared ECharts instance wrapper
+        └── charts/
+            ├── BarChart.jsx          # bar
+            ├── PieChart.jsx          # pie
+            ├── LineChart.jsx         # line
+            ├── HeatmapChart.jsx      # heatmap
+            ├── RadarChart.jsx        # radar
+            ├── GaugeChart.jsx        # gauge
+            ├── ScatterChart.jsx      # scatter
+            ├── TreemapChart.jsx      # treemap
+            └── GeoChart.jsx          # map  (needs frontend/public/world.json)
 ```
+
+---
+
+## Adding a New Chart Type (Frontend)
+
+The only frontend change required when introducing a new chart type:
+
+**1. Create `frontend/src/components/charts/MyChart.jsx`:**
+
+```jsx
+import EChartsWrapper from '../EChartsWrapper'
+
+export default function MyChart({ uiSchema, data }) {
+  const option = {
+    // Build ECharts option using uiSchema fields and data rows
+  }
+  return <EChartsWrapper option={option} />
+}
+```
+
+**2. Register in `frontend/src/components/WidgetRenderer.jsx`:**
+
+```js
+import MyChart from './charts/MyChart'
+
+const CHART_REGISTRY = {
+  bar:     BarChart,
+  pie:     PieChart,
+  line:    LineChart,
+  // ...
+  mychart: MyChart,   // add this line
+}
+```
+
+Any widget with `"chart_type": "mychart"` in its `dynamicConfig` now renders correctly.  
+No backend change. No restart.
 
 ---
 
 ## Registered DataSource Keys
 
-The `targetDb` field in WIDGET_MASTER must match a key in `DataSourceConfig#dataSourceRegistry`.
+The `targetDb` field in the widget registration body must match a key in `DataSourceConfig#dataSourceRegistry`.
 
 | Key | Points to |
 |-----|-----------|
-| `targetDataSource` | `jdbc:h2:mem:targetdb` (the business data DB) |
+| `TARGET_DB` | `jdbc:h2:mem:targetdb` — the business data DB |
 
-To add a new target database (e.g. Oracle production), add an entry to `DataSourceConfig#dataSourceRegistry` — this is the **only** backend code change ever needed.
+To add a new target database (e.g. Oracle), add one entry to `DataSourceConfig#dataSourceRegistry`.  
+That is the **only** Java change ever needed to support a new data source.
 
 ---
 
 ## Notes for Air-Gapped / Production Deployment
 
-- Replace H2 in-memory DBs with Oracle or Tibero: update `application.yml` datasource URLs and add the JDBC driver JAR to the classpath.
-- `WIDGET_MASTER` DDL uses standard SQL (`VARCHAR`, `CLOB`, `BOOLEAN`) — compatible with Oracle (`CLOB`, `NUMBER(1,0)`) with minor type adjustments.
-- The `GenericRowDao` identifier validator (`[A-Za-z][A-Za-z0-9_]{0,127}`) prevents SQL injection on table and column names passed via API.
-- All `query_sql` values use named parameters (`:param`) bound by `NamedParameterJdbcTemplate` — safe from injection in query values.
+- Replace H2 with Oracle or Tibero: update `application.yml` datasource URLs, add the JDBC driver JAR to the classpath.
+- All three meta tables use only `VARCHAR(N)`, `INT`, and `BOOLEAN` — compatible with any SQL database without type adjustments.
+- `query_sql` named parameters (`:param`) are bound by `NamedParameterJdbcTemplate` — safe from SQL injection on query values.
+- Table and column identifiers in `GenericRowDao` are validated against `[A-Za-z][A-Za-z0-9_]{0,127}` — safe from SQL injection on identifiers.

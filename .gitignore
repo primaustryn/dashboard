@@ -1,9 +1,41 @@
 HELP.md
+
+# ── Java / Maven ─────────────────────────────────────────────────────────────
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+# ── Frontend (Node / Vite) ────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# ── Map data (large binary, download separately) ──────────────────────────────
+frontend/public/world.json
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── H2 persistent DB files (if ever switched from in-memory) ─────────────────
+*.db
+*.mv.db
+*.trace.db
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+*.key
+*.pem
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDEs ─────────────────────────────────────────────────────────────────────
 ### STS ###
 .apt_generated
 .classpath
@@ -14,7 +46,7 @@ target/
 .sts4-cache
 
 ### IntelliJ IDEA ###
-.idea
+.idea/
 *.iws
 *.iml
 *.ipr
@@ -31,3 +63,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Claude ###
+.claude/
