@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: dashboard
+
+  # Disable Spring Boot's single-datasource auto-init; each DataSource is
+  # initialised explicitly via DataSourceInitializer beans in DataSourceConfig.
+  sql:
+    init:
+      mode: never
+
+  # Two separate H2 in-memory databases:
+  #   metadb  – stores WIDGET_MASTER (metadata / UI schema / SQL definitions)
+  #   targetdb – stores the actual business data the widgets query against
+  # In production, replace these with Oracle/Tibero JDBC URLs and credentials.
+  datasource:
+    meta:
+      url: jdbc:h2:mem:metadb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      driver-class-name: org.h2.Driver
+      username: sa
+      password: ""
+    target:
+      url: jdbc:h2:mem:targetdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      driver-class-name: org.h2.Driver
+      username: sa
+      password: ""
+
+  # H2 web console: connect to metadb or targetdb by changing the JDBC URL field
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+server:
+  port: 8081
+
+logging:
+  level:
+    com.shb: DEBUG
+    org.springframework.jdbc: DEBUG

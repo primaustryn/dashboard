@@ -1,0 +1,3 @@
+-- Business data is now ingested via the Data API.
+-- POST /api/v1/data/sales        single record
+-- POST /api/v1/data/sales/batch  bulk insert

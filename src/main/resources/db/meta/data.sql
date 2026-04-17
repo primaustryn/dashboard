@@ -1,0 +1,2 @@
+-- Widget definitions are now managed via the Admin API.
+-- POST /api/v1/admin/widgets  to register a widget at runtime.
