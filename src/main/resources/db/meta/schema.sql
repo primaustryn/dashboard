@@ -1,7 +1,6 @@
 -- ============================================================
--- META DB – Widget definitions in normalized VARCHAR-only tables.
+-- META DB – Widget definitions + audit tables.
 -- No CLOB / TEXT / BLOB columns; every column is VARCHAR(N) or BOOLEAN.
--- Adding a new widget = INSERT rows; zero Java code changes.
 -- ============================================================
 
 -- Core identity: one row per widget, scalar metadata only.
@@ -13,7 +12,6 @@ CREATE TABLE IF NOT EXISTS WIDGET_MASTER (
 );
 
 -- Query SQL split into ordered 4 KB chunks.
--- Reassemble by ORDER BY chunk_order and concatenate chunk_text.
 CREATE TABLE IF NOT EXISTS WIDGET_QUERY (
     widget_id    VARCHAR(50)   NOT NULL,
     chunk_order  INT           NOT NULL,
@@ -23,16 +21,30 @@ CREATE TABLE IF NOT EXISTS WIDGET_QUERY (
 );
 
 -- EAV config: each top-level JSON key stored as one row.
--- config_val holds the JSON-encoded representation of the value:
---   string  -> "bar"          (quoted)
---   number  -> 42
---   boolean -> true
---   array   -> [{"name":"X"}]
---   object  -> {"field":"y"}
 CREATE TABLE IF NOT EXISTS WIDGET_CONFIG (
     widget_id    VARCHAR(50)   NOT NULL,
     config_key   VARCHAR(100)  NOT NULL,
     config_val   VARCHAR(1000),
     CONSTRAINT pk_widget_config PRIMARY KEY (widget_id, config_key),
     CONSTRAINT fk_wc_master     FOREIGN KEY (widget_id) REFERENCES WIDGET_MASTER(widget_id)
+);
+
+-- Widget lifecycle audit: records every CREATE / UPDATE / DELETE / ACTIVATE / DEACTIVATE.
+CREATE TABLE IF NOT EXISTS WIDGET_AUDIT (
+    id          BIGINT        NOT NULL AUTO_INCREMENT,
+    widget_id   VARCHAR(50)   NOT NULL,
+    action      VARCHAR(20)   NOT NULL,
+    changed_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_widget_audit PRIMARY KEY (id)
+);
+
+-- HTTP request audit: one row per /api/** call, immutable record for compliance.
+CREATE TABLE IF NOT EXISTS AUDIT_LOG (
+    id          BIGINT        NOT NULL AUTO_INCREMENT,
+    request_ts  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    http_method VARCHAR(10)   NOT NULL,
+    request_uri VARCHAR(500)  NOT NULL,
+    client_ip   VARCHAR(50),
+    status_code INT,
+    CONSTRAINT pk_audit_log PRIMARY KEY (id)
 );

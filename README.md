@@ -20,8 +20,9 @@ Widget SQL, chart type, axes, and title all live in the database.
 10. [Admin API Reference](#admin-api-reference)
 11. [Data Ingestion API](#data-ingestion-api)
 12. [Data Flow](#data-flow)
-13. [Project Structure](#project-structure)
-14. [Adding a New Chart Type (Frontend)](#adding-a-new-chart-type-frontend)
+13. [Security Controls](#security-controls)
+14. [Project Structure](#project-structure)
+15. [Adding a New Chart Type (Frontend)](#adding-a-new-chart-type-frontend)
 
 ---
 
@@ -36,14 +37,18 @@ Widget SQL, chart type, axes, and title all live in the database.
 ┌────────────────────▼────────────────────────────────────────────┐
 │  Spring Boot  (port 8081)                                       │
 │                                                                 │
+│  SecurityHeaderFilter    — security response headers            │
+│  AuditInterceptor        — HTTP request audit log (AUDIT_LOG)   │
+│                                                                 │
 │  WidgetEngineController                                         │
 │    └─ WidgetEngineService                                       │
 │         ├─ reads widget metadata from Meta DB (H2: metadb)      │
 │         └─ executes querySql against Target DB (H2: targetdb)   │
+│              └─ DynamicWidgetDao (30 s timeout · 10 000-row cap)│
 │                                                                 │
 │  WidgetAdminController  — CRUD for widget definitions           │
+│    └─ WidgetDefinitionService → WidgetAuditDao (WIDGET_AUDIT)   │
 │  GenericDataController  — insert rows into any target table     │
-│  TargetSchemaController — execute DDL on target DB              │
 └─────────────────────────────────────────────────────────────────┘
          │                          │
 ┌────────▼──────────┐    ┌──────────▼──────────┐
@@ -51,15 +56,16 @@ Widget SQL, chart type, axes, and title all live in the database.
 │  WIDGET_MASTER    │    │ SALES_SUMMARY        │
 │  WIDGET_QUERY     │    │ TRADE_SUMMARY        │
 │  WIDGET_CONFIG    │    │ RISK_SUMMARY         │
-└───────────────────┘    │ FX_RATE  …etc.       │
-                         └─────────────────────┘
+│  WIDGET_AUDIT     │    │ FX_RATE              │
+│  AUDIT_LOG        │    │ RISK_MATRIX  …etc.   │
+└───────────────────┘    └─────────────────────┘
 ```
 
 ### Two Databases
 
 | Database | H2 Name | Purpose |
 |----------|---------|---------|
-| **Meta DB** | `metadb` | Widget definitions (SQL, uiSchema, target routing) |
+| **Meta DB** | `metadb` | Widget definitions, lifecycle audit, HTTP audit |
 | **Target DB** | `targetdb` | Business data (sales, trades, risk, FX, …) |
 
 ---
@@ -75,7 +81,7 @@ Widget SQL, chart type, axes, and title all live in the database.
 ### Steps
 
 ```bash
-# Terminal 1 — Start the backend
+# Terminal 1 — Start the backend (all target tables created automatically at startup)
 ./run.sh
 
 # Terminal 2 — Seed initial data and register the first 6 widgets
@@ -96,13 +102,16 @@ Open **http://localhost:5173**
 >   "https://echarts.apache.org/examples/data/asset/geo/world.json"
 > ```
 
+> **Credentials**: By default the server uses H2 in-memory databases with no password.  
+> For production, supply credentials via environment variables (see [Security Controls](#security-controls)).
+
 ---
 
 ## Database Schema
 
-### Meta DB — Widget Definitions
+### Meta DB — Widget Definitions & Audit
 
-The meta DB uses three normalized, **VARCHAR-only** tables (no CLOB/TEXT).  
+The meta DB uses five **VARCHAR-only** tables (no CLOB/TEXT).  
 This design is compatible with Oracle, Tibero, and any database that restricts column types.
 
 ```
@@ -126,37 +135,42 @@ WIDGET_CONFIG (EAV — each top-level JSON key in uiSchema as one row)
 │ config_key  │ VARCHAR(100) │ JSON key  — e.g. "chart_type"         │
 │ config_val  │ VARCHAR(1000)│ JSON value — e.g. "\"bar\""           │
 └─────────────┴──────────────┴───────────────────────────────────────┘
+
+WIDGET_AUDIT (widget lifecycle events)
+┌────────────┬──────────────┬────────────────────────────────────────┐
+│ id         │ BIGINT       │ PK AUTO_INCREMENT                      │
+│ widget_id  │ VARCHAR(50)  │ Which widget was acted on              │
+│ action     │ VARCHAR(20)  │ CREATE / UPDATE / DELETE / ACTIVATE … │
+│ changed_at │ TIMESTAMP    │ DEFAULT CURRENT_TIMESTAMP              │
+└────────────┴──────────────┴────────────────────────────────────────┘
+
+AUDIT_LOG (HTTP request log — one row per /api/** call)
+┌─────────────┬──────────────┬───────────────────────────────────────┐
+│ id          │ BIGINT       │ PK AUTO_INCREMENT                     │
+│ request_ts  │ TIMESTAMP    │ DEFAULT CURRENT_TIMESTAMP             │
+│ http_method │ VARCHAR(10)  │ GET / POST / PUT / PATCH / DELETE     │
+│ request_uri │ VARCHAR(500) │ Request path                          │
+│ client_ip   │ VARCHAR(50)  │ Resolved from X-Forwarded-For / remote│
+│ status_code │ INT          │ HTTP response status                  │
+└─────────────┴──────────────┴───────────────────────────────────────┘
 ```
-
-**How a widget is stored:**  
-`dynamicConfig = {"chart_type":"bar","title":"Sales by Region","xAxis":{...}}` is broken into rows:
-
-| config_key | config_val |
-|------------|------------|
-| `chart_type` | `"bar"` |
-| `title` | `"Sales by Region"` |
-| `xAxis` | `{"field":"region","label":"Region"}` |
-
-On read, the rows are reassembled back into the original JSON object — callers see no difference.
 
 ### Target DB — Business Data
 
+All 10 tables are created automatically at startup via `db/target/schema.sql`.  
+**No DDL API calls are required.**
+
 ```sql
--- Always exists (schema.sql)
-SALES_SUMMARY (id, region, product, amount DECIMAL, sale_date DATE)
-
--- Created by setup.sh at runtime
-TRADE_SUMMARY  (id, symbol, desk, notional DECIMAL, trade_date DATE)
-RISK_SUMMARY   (id, portfolio, var_amount DECIMAL, report_date DATE)
-FX_RATE        (id, pair, rate DECIMAL, rate_date DATE)
-
--- Created by setup-new-charts.sh at runtime
-RISK_MATRIX        (id, desk, risk_type, score DECIMAL)
-PORTFOLIO_SCORES   (id, portfolio, market_score, credit_score, liquidity_score, op_score, compliance_score)
-VAR_UTILIZATION    (id, portfolio, utilization DECIMAL)
-ASSET_PERFORMANCE  (id, asset, risk_pct, return_pct, volume DECIMAL)
-PORTFOLIO_AUM      (id, region, asset_class, aum DECIMAL)
-GLOBAL_EXPOSURE    (id, country, exposure DECIMAL)
+SALES_SUMMARY    (id, region, product, amount DECIMAL, sale_date DATE)
+TRADE_SUMMARY    (id, symbol, desk, notional DECIMAL, trade_date DATE)
+RISK_SUMMARY     (id, portfolio, var_amount DECIMAL, report_date DATE)
+FX_RATE          (id, pair, rate DECIMAL, rate_date DATE)
+RISK_MATRIX      (id, desk, risk_type, score DECIMAL)
+PORTFOLIO_SCORES (id, portfolio, market_score, credit_score, liquidity_score, op_score, compliance_score)
+VAR_UTILIZATION  (id, portfolio, utilization DECIMAL)
+ASSET_PERFORMANCE(id, asset, risk_pct, return_pct, volume DECIMAL)
+PORTFOLIO_AUM    (id, region, asset_class, aum DECIMAL)
+GLOBAL_EXPOSURE  (id, country, exposure DECIMAL)
 ```
 
 ---
@@ -184,17 +198,9 @@ After running both setup scripts, 12 widgets are active:
 
 ## How to Add a Widget
 
-Three steps: create a table (if needed), seed data, register the widget.
+Tables are pre-created at startup. Adding a widget only requires seeding data and registering the widget.
 
-### Step 1 — Create the table
-
-```bash
-curl -s -X POST http://localhost:8081/api/v1/target/schema/execute \
-  -H "Content-Type: application/json" \
-  -d '{"sql": "CREATE TABLE IF NOT EXISTS MY_TABLE (id BIGINT AUTO_INCREMENT PRIMARY KEY, category VARCHAR(100) NOT NULL, value DECIMAL(20,2) NOT NULL, txn_date DATE NOT NULL)"}'
-```
-
-### Step 2 — Seed data
+### Step 1 — Seed data
 
 Single row:
 ```bash
@@ -214,7 +220,9 @@ curl -s -X POST http://localhost:8081/api/v1/target/MY_TABLE/rows/batch \
   ]'
 ```
 
-### Step 3 — Register the widget
+> Table and column names are validated against `[A-Za-z][A-Za-z0-9_]{0,127}` **and** verified to exist in `INFORMATION_SCHEMA` before any INSERT is issued.
+
+### Step 2 — Register the widget
 
 ```bash
 curl -s -X POST http://localhost:8081/api/v1/admin/widgets \
@@ -227,7 +235,8 @@ curl -s -X POST http://localhost:8081/api/v1/admin/widgets \
   }'
 ```
 
-The widget appears on the dashboard **immediately** — no server restart, no code change.
+The widget appears on the dashboard **immediately** — no server restart, no code change.  
+A `CREATE` row is written to `WIDGET_AUDIT` automatically.
 
 > **Field name casing**: H2 returns column names in UPPERCASE. The frontend normalizes them to lowercase automatically, so `querySql` aliases should use lowercase (`total`, not `TOTAL`).
 
@@ -247,7 +256,7 @@ curl -s -X PUT http://localhost:8081/api/v1/admin/widgets/WD_MY_WIDGET \
   }'
 ```
 
-The updated widget renders on next browser refresh.
+The updated widget renders on next browser refresh. An `UPDATE` row is written to `WIDGET_AUDIT`.
 
 ---
 
@@ -258,6 +267,8 @@ Permanently removes the widget definition. Table data is **not** affected.
 ```bash
 curl -s -X DELETE http://localhost:8081/api/v1/admin/widgets/WD_MY_WIDGET
 ```
+
+A `DELETE` row is written to `WIDGET_AUDIT`.
 
 ---
 
@@ -278,6 +289,8 @@ curl -s "http://localhost:8081/api/v1/admin/widgets?activeOnly=true"
 # List all widgets (active + inactive)
 curl -s "http://localhost:8081/api/v1/admin/widgets"
 ```
+
+`ACTIVATE` and `DEACTIVATE` events are written to `WIDGET_AUDIT`.
 
 ---
 
@@ -501,20 +514,16 @@ curl -o frontend/public/world.json \
   "data": [
     { "region": "North", "total_amount": 26450000 },
     { "region": "South", "total_amount": 25100000 }
-  ]
+  ],
+  "truncated": false
 }
 ```
+
+`truncated: true` means the result set was capped at 10,000 rows server-side. Refine the widget SQL with a `WHERE` clause or aggregation to avoid this.
 
 ---
 
 ## Data Ingestion API
-
-### Execute DDL on target DB
-
-```
-POST /api/v1/target/schema/execute
-Body: { "sql": "CREATE TABLE ..." }
-```
 
 ### Insert rows
 
@@ -533,7 +542,9 @@ GET /api/v1/target/{tableName}/rows
 Response: [ { "id": 1, "col1": "val1" }, ... ]
 ```
 
-Table and column names are validated against `[A-Za-z][A-Za-z0-9_]{0,127}` to prevent SQL injection.
+**Identifier safety**: Table and column names are validated against `[A-Za-z][A-Za-z0-9_]{0,127}` and then verified to exist in `INFORMATION_SCHEMA.TABLES` / `INFORMATION_SCHEMA.COLUMNS` before any SQL is executed. Unknown names are rejected with `400 Bad Request`.
+
+> **No DDL API**: Schema changes must be made by editing `src/main/resources/db/target/schema.sql` and restarting the application. Runtime DDL execution was removed to eliminate the attack surface.
 
 ---
 
@@ -541,6 +552,12 @@ Table and column names are validated against `[A-Za-z][A-Za-z0-9_]{0,127}` to pr
 
 ```
 GET /api/v1/widgets/{widgetId}?param=value
+          │
+          ▼
+  SecurityHeaderFilter  (adds X-Content-Type-Options, X-Frame-Options, CSP, …)
+          │
+          ▼
+  AuditInterceptor      (writes to AUDIT_LOG after response)
           │
           ▼
   WidgetEngineController
@@ -552,7 +569,8 @@ GET /api/v1/widgets/{widgetId}?param=value
     3. WIDGET_CONFIG  → rebuild dynamicConfig JSON from EAV rows
     4. Resolve DataSource from registry using targetDb key
     5. Execute querySql against target DataSource (named params :param substituted)
-    6. Return WidgetResponse { widgetId, uiSchema, data[] }
+       └─ DynamicWidgetDao enforces 30 s query timeout + 10 000-row cap
+    6. Return WidgetResponse { widgetId, uiSchema, data[], truncated }
           │
           ▼
   Frontend: WidgetRenderer
@@ -563,46 +581,88 @@ GET /api/v1/widgets/{widgetId}?param=value
 
 ---
 
+## Security Controls
+
+| Control | Implementation | Purpose |
+|---------|---------------|---------|
+| No DDL API | `TargetSchemaController` removed; schema managed via `schema.sql` | Eliminates runtime schema tampering |
+| Query timeout | `DynamicWidgetDao`: 30 s via `setQueryTimeout()` | Prevents runaway queries (DoS) |
+| Result row cap | `DynamicWidgetDao`: 10 000 rows via `setMaxRows()` | Prevents memory exhaustion |
+| Identifier validation | `GenericRowDao`: regex + INFORMATION_SCHEMA lookup | Prevents SQL injection on table/column names |
+| Credential externalization | `application.yml`: `${ENV_VAR:default}` pattern | Keeps secrets out of source control |
+| HTTP audit log | `AuditInterceptor` → `AUDIT_LOG` table | Compliance audit trail for all API calls |
+| Widget lifecycle audit | `WidgetAuditDao` → `WIDGET_AUDIT` table | Immutable record of widget CRUD events |
+| Security response headers | `SecurityHeaderFilter` | Mitigates XSS, clickjacking, MIME sniffing |
+| DB error masking | `GlobalExceptionHandler` (`DataAccessException`) | Prevents SQL/schema details leaking to HTTP response |
+
+### Environment variables for production credentials
+
+| Variable | Default (dev) | Description |
+|----------|--------------|-------------|
+| `META_DB_URL` | `jdbc:h2:mem:metadb;…` | JDBC URL for meta database |
+| `META_DB_DRIVER` | `org.h2.Driver` | JDBC driver class |
+| `META_DB_USER` | `sa` | Meta DB username |
+| `META_DB_PASSWORD` | _(empty)_ | Meta DB password |
+| `TARGET_DB_URL` | `jdbc:h2:mem:targetdb;…` | JDBC URL for target database |
+| `TARGET_DB_DRIVER` | `org.h2.Driver` | JDBC driver class |
+| `TARGET_DB_USER` | `sa` | Target DB username |
+| `TARGET_DB_PASSWORD` | _(empty)_ | Target DB password |
+
+### Security response headers
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| `X-Content-Type-Options` | `nosniff` | Prevents MIME-type sniffing |
+| `X-Frame-Options` | `DENY` | Blocks iframe embedding (clickjacking) |
+| `Content-Security-Policy` | `default-src 'self'; script-src 'self' 'unsafe-inline'; …` | Restricts resource loading |
+| `Referrer-Policy` | `no-referrer` | Suppresses Referer on cross-origin requests |
+| `Cache-Control` (API paths) | `no-store, no-cache, must-revalidate` | Prevents caching of financial data |
+
+---
+
 ## Project Structure
 
 ```
 dashboard/
 ├── run.sh                            # Start Spring Boot (ensures Java 21)
-├── setup.sh                          # Create tables → seed data → register 6 widgets
+├── setup.sh                          # Seed data → register 6 widgets
 │                                     #   ./setup.sh scenarios  — lifecycle demo
 ├── setup-new-charts.sh               # Register 6 more chart-type widgets
 │                                     #   ./setup-new-charts.sh reset     — re-seed
 │                                     #   ./setup-new-charts.sh teardown  — remove widgets
 │
 ├── src/main/java/com/shb/dashboard/
+│   ├── audit/
+│   │   └── AuditInterceptor.java     # Writes every /api/** request to AUDIT_LOG
 │   ├── config/
 │   │   ├── DataSourceConfig.java     # Dual H2 datasource + dataSourceRegistry map
-│   │   └── WebConfig.java            # CORS configuration
+│   │   ├── SecurityHeaderFilter.java # OncePerRequestFilter — 5 security headers
+│   │   └── WebConfig.java            # CORS + AuditInterceptor registration
 │   ├── controller/
 │   │   ├── WidgetEngineController.java   # GET /api/v1/widgets/{id}
 │   │   ├── WidgetAdminController.java    # CRUD /api/v1/admin/widgets
-│   │   ├── GenericDataController.java    # /api/v1/target/{table}/rows
-│   │   └── TargetSchemaController.java   # POST /api/v1/target/schema/execute
+│   │   └── GenericDataController.java    # /api/v1/target/{table}/rows
 │   ├── service/
 │   │   ├── WidgetEngineService.java      # Core orchestrator (reads 3 meta tables)
-│   │   ├── WidgetDefinitionService.java  # Widget CRUD logic
+│   │   ├── WidgetDefinitionService.java  # Widget CRUD + WidgetAuditDao calls
 │   │   └── GenericDataService.java       # Dynamic row insertion
 │   ├── dao/
 │   │   ├── WidgetDefinitionDao.java      # 3-table EAV read/write (MASTER+QUERY+CONFIG)
-│   │   ├── DynamicWidgetDao.java         # Executes querySql on target DataSource
-│   │   └── GenericRowDao.java            # Dynamic INSERT builder
+│   │   ├── DynamicWidgetDao.java         # Executes querySql (timeout + row cap)
+│   │   ├── GenericRowDao.java            # Dynamic INSERT (regex + INFORMATION_SCHEMA guard)
+│   │   └── WidgetAuditDao.java           # Writes widget lifecycle events to WIDGET_AUDIT
 │   ├── model/
 │   │   ├── WidgetDefinition.java         # API contract (request/response body)
 │   │   ├── WidgetMeta.java               # Internal record (targetDb, querySql, config)
-│   │   └── WidgetResponse.java           # API response (widgetId, uiSchema, data)
+│   │   └── WidgetResponse.java           # API response (widgetId, uiSchema, data, truncated)
 │   └── exception/
 │       ├── WidgetNotFoundException.java
-│       └── GlobalExceptionHandler.java
+│       └── GlobalExceptionHandler.java   # Handles DataAccessException (masks DB details)
 │
 ├── src/main/resources/
-│   ├── db/meta/schema.sql            # WIDGET_MASTER + WIDGET_QUERY + WIDGET_CONFIG DDL
-│   ├── db/target/schema.sql          # SALES_SUMMARY DDL
-│   └── application.yml               # Ports, dual-datasource URLs, H2 console
+│   ├── db/meta/schema.sql            # 5 tables: WIDGET_MASTER/QUERY/CONFIG + WIDGET_AUDIT + AUDIT_LOG
+│   ├── db/target/schema.sql          # All 10 business tables (auto-created at startup)
+│   └── application.yml               # Ports, dual-datasource URLs (env-var overridable), H2 console
 │
 └── frontend/src/
     ├── api/widgetApi.js              # Axios client (fetches widget list + data; lowercases keys)
@@ -679,7 +739,8 @@ That is the **only** Java change ever needed to support a new data source.
 
 ## Notes for Air-Gapped / Production Deployment
 
-- Replace H2 with Oracle or Tibero: update `application.yml` datasource URLs, add the JDBC driver JAR to the classpath.
-- All three meta tables use only `VARCHAR(N)`, `INT`, and `BOOLEAN` — compatible with any SQL database without type adjustments.
+- Replace H2 with Oracle or Tibero: update the environment variables listed in [Security Controls](#security-controls), add the JDBC driver JAR to the classpath.
+- All five meta tables use only `VARCHAR(N)`, `INT`, `BIGINT`, `BOOLEAN`, and `TIMESTAMP` — compatible with any SQL database without type adjustments.
 - `query_sql` named parameters (`:param`) are bound by `NamedParameterJdbcTemplate` — safe from SQL injection on query values.
-- Table and column identifiers in `GenericRowDao` are validated against `[A-Za-z][A-Za-z0-9_]{0,127}` — safe from SQL injection on identifiers.
+- Table and column identifiers in `GenericRowDao` are validated with regex **and** confirmed against `INFORMATION_SCHEMA` — safe from SQL injection on identifiers. Adapt the `INFORMATION_SCHEMA` queries to `USER_TABLES` / `USER_TAB_COLUMNS` when targeting Oracle.
+- Schema changes to the target DB must go through `db/target/schema.sql` and a controlled deployment — there is no runtime DDL endpoint.

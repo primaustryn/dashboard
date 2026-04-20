@@ -1,4 +1,5 @@
 import EChartsWrapper from '../EChartsWrapper'
+import { escapeHtml as esc } from '../../utils/html'
 
 const GRADIENTS = [
   ['#00d4ff', '#0051cc'],
@@ -99,9 +100,9 @@ export default function BarChart({ uiSchema, data }) {
       padding:         [10, 14],
       textStyle:       { color: '#c0d0e8', fontSize: 12 },
       formatter: params => {
-        const hdr  = `<div style="font-weight:700;margin-bottom:6px;color:#00d4ff;font-size:13px">${params[0]?.axisValue}</div>`
+        const hdr  = `<div style="font-weight:700;margin-bottom:6px;color:#00d4ff;font-size:13px">${esc(params[0]?.axisValue)}</div>`
         const rows = params.map(p =>
-          `<div style="margin:2px 0">${p.marker} ${p.seriesName}: <b style="color:#fff">${fmt(p.value)}</b></div>`
+          `<div style="margin:2px 0">${p.marker} ${esc(p.seriesName)}: <b style="color:#fff">${fmt(p.value)}</b></div>`
         ).join('')
         return hdr + rows
       },

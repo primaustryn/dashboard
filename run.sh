@@ -15,4 +15,4 @@ export JAVA_HOME="$JAVA21_HOME"
 export PATH="$JAVA_HOME/bin:$PATH"
 
 echo "Using Java: $(java -version 2>&1 | head -1)"
-exec ./mvnw spring-boot:run "$@"
+exec ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev "$@"

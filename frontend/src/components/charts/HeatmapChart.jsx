@@ -1,4 +1,5 @@
 import EChartsWrapper from '../EChartsWrapper'
+import { escapeHtml as esc } from '../../utils/html'
 
 export default function HeatmapChart({ uiSchema, data }) {
   const xValues = [...new Set(data.map(row => String(row[uiSchema.xField] ?? '')))]
@@ -27,9 +28,9 @@ export default function HeatmapChart({ uiSchema, data }) {
       textStyle: { color: '#c0d0e8', fontSize: 12 },
       formatter: p => `
         <div style="margin-bottom:6px">
-          <b style="color:#00d4ff">${xValues[p.data[0]]}</b>
+          <b style="color:#00d4ff">${esc(xValues[p.data[0]])}</b>
           <span style="color:#607898"> × </span>
-          <b style="color:#a855f7">${yValues[p.data[1]]}</b>
+          <b style="color:#a855f7">${esc(yValues[p.data[1]])}</b>
         </div>
         <div>Value: <b style="color:#fff">${Number(p.data[2]).toLocaleString()}</b></div>
       `,

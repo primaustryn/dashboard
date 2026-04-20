@@ -1,4 +1,5 @@
 import EChartsWrapper from '../EChartsWrapper'
+import { escapeHtml as esc } from '../../utils/html'
 
 const COLORS = ['#00d4ff', '#a855f7', '#00ffaa', '#fbbf24', '#f43f5e', '#06b6d4', '#fb923c', '#34d399']
 
@@ -45,9 +46,9 @@ export default function ScatterChart({ uiSchema, data }) {
       borderColor: '#00d4ff33', borderWidth: 1, padding: [10, 14],
       textStyle: { color: '#c0d0e8', fontSize: 12 },
       formatter: p => `
-        <div style="font-weight:700;color:#00d4ff;font-size:13px;margin-bottom:6px">${p.data.name}</div>
-        <div style="margin:2px 0">${uiSchema.xLabel ?? 'X'}: <b style="color:#fff">${p.value[0]}</b></div>
-        <div style="margin:2px 0">${uiSchema.yLabel ?? 'Y'}: <b style="color:#fff">${p.value[1]}</b></div>
+        <div style="font-weight:700;color:#00d4ff;font-size:13px;margin-bottom:6px">${esc(p.data.name)}</div>
+        <div style="margin:2px 0">${esc(uiSchema.xLabel ?? 'X')}: <b style="color:#fff">${p.value[0]}</b></div>
+        <div style="margin:2px 0">${esc(uiSchema.yLabel ?? 'Y')}: <b style="color:#fff">${p.value[1]}</b></div>
         ${uiSchema.sizeField ? `<div style="margin:2px 0;color:#8099bb">Size: <b style="color:#fff">${p.data.rawSize}</b></div>` : ''}
       `,
     },

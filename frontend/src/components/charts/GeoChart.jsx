@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import * as echarts from 'echarts'
 import EChartsWrapper from '../EChartsWrapper'
+import { escapeHtml as esc } from '../../utils/html'
 
 const MAP_NAME = 'world'
 
@@ -42,9 +43,12 @@ export default function GeoChart({ uiSchema, data }) {
       backgroundColor: 'rgba(7,12,24,0.95)',
       borderColor: '#00d4ff33', borderWidth: 1, padding: [10, 14],
       textStyle: { color: '#c0d0e8', fontSize: 12 },
-      formatter: p => p.value != null
-        ? `<div style="font-weight:700;color:#00d4ff;margin-bottom:6px">${p.name}</div><div>Value: <b style="color:#fff">${Number(p.value).toLocaleString()}</b></div>`
-        : `<div style="color:#607898">${p.name}: no data</div>`,
+      formatter: p => {
+        const name = esc(p.name)
+        return p.value != null
+          ? `<div style="font-weight:700;color:#00d4ff;margin-bottom:6px">${name}</div><div>Value: <b style="color:#fff">${Number(p.value).toLocaleString()}</b></div>`
+          : `<div style="color:#607898">${name}: no data</div>`
+      },
     },
     visualMap: {
       min: 0, max: maxVal,

@@ -23,29 +23,8 @@ delete() { curl -sf -X DELETE         "$BASE/$1"; }
 get()    { curl -sf            "$BASE/$1"; }
 
 # =============================================================================
-# STEP 1 — CREATE TABLES (only tables not in schema.sql; SALES_SUMMARY exists)
-# =============================================================================
-create_tables() {
-  step "Creating target tables"
-
-  post "api/v1/target/schema/execute" '{
-    "sql": "CREATE TABLE IF NOT EXISTS TRADE_SUMMARY (id BIGINT AUTO_INCREMENT PRIMARY KEY, symbol VARCHAR(20) NOT NULL, desk VARCHAR(50) NOT NULL, notional DECIMAL(20,2) NOT NULL, trade_date DATE NOT NULL)"
-  }'
-  ok "TRADE_SUMMARY"
-
-  post "api/v1/target/schema/execute" '{
-    "sql": "CREATE TABLE IF NOT EXISTS RISK_SUMMARY (id BIGINT AUTO_INCREMENT PRIMARY KEY, portfolio VARCHAR(100) NOT NULL, var_amount DECIMAL(20,2) NOT NULL, report_date DATE NOT NULL)"
-  }'
-  ok "RISK_SUMMARY"
-
-  post "api/v1/target/schema/execute" '{
-    "sql": "CREATE TABLE IF NOT EXISTS FX_RATE (id BIGINT AUTO_INCREMENT PRIMARY KEY, pair VARCHAR(20) NOT NULL, rate DECIMAL(12,4) NOT NULL, rate_date DATE NOT NULL)"
-  }'
-  ok "FX_RATE"
-}
-
-# =============================================================================
-# STEP 2 — SEED DATA
+# STEP 1 — SEED DATA
+# (All tables are created automatically at startup via db/target/schema.sql)
 # =============================================================================
 seed_data() {
   step "Seeding SALES_SUMMARY"
@@ -156,7 +135,7 @@ seed_data() {
 }
 
 # =============================================================================
-# STEP 3 — REGISTER 6 WIDGETS
+# STEP 2 — REGISTER 6 WIDGETS
 # =============================================================================
 register_widgets() {
   step "Registering widgets"
@@ -272,7 +251,6 @@ if [[ "${1:-}" == "scenarios" ]]; then
 else
   echo "Dashboard Engine — Full Setup"
   echo "Backend: $BASE"
-  create_tables
   seed_data
   register_widgets
   echo

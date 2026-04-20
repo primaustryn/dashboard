@@ -46,7 +46,8 @@
       "Bash(curl -sf \"http://localhost:8081/api/v1/widgets/WD_SALES_REGION\")",
       "Bash(python3 -c \"import sys,json; r=json.load\\(sys.stdin\\); print\\('uiSchema:', r['uiSchema']\\); print\\('rows:', len\\(r['data']\\)\\)\")",
       "Bash(curl -sf \"http://localhost:8081/api/v1/widgets/WD_PORTFOLIO_RADAR\")",
-      "Bash(python3 -c \"import sys,json; r=json.load\\(sys.stdin\\); print\\('chart_type:', r['uiSchema']['chart_type']\\); print\\('indicators:', r['uiSchema']['indicators']\\); print\\('rows:', len\\(r['data']\\)\\)\")"
+      "Bash(python3 -c \"import sys,json; r=json.load\\(sys.stdin\\); print\\('chart_type:', r['uiSchema']['chart_type']\\); print\\('indicators:', r['uiSchema']['indicators']\\); print\\('rows:', len\\(r['data']\\)\\)\")",
+      "Bash(JAVA_HOME=\"/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home\" ./mvnw compile -q)"
     ]
   }
 }

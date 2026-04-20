@@ -1,4 +1,5 @@
 import EChartsWrapper from '../EChartsWrapper'
+import { escapeHtml as esc } from '../../utils/html'
 
 const PALETTE = [
   '#00d4ff', '#a855f7', '#00ffaa', '#fbbf24',
@@ -77,7 +78,7 @@ export default function PieChart({ uiSchema, data }) {
       padding:         [10, 14],
       textStyle:       { color: '#c0d0e8', fontSize: 12 },
       formatter: p => `
-        <div style="font-weight:700;color:${PALETTE[p.dataIndex % PALETTE.length]};font-size:13px;margin-bottom:6px">${p.name}</div>
+        <div style="font-weight:700;color:${PALETTE[p.dataIndex % PALETTE.length]};font-size:13px;margin-bottom:6px">${esc(p.name)}</div>
         <div style="margin:2px 0">${p.marker} Value: <b style="color:#fff">${fmt(p.value)}</b></div>
         <div style="color:#607898;margin-top:4px;font-size:11px">${p.percent.toFixed(1)}% of total</div>
       `,

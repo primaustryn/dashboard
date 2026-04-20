@@ -1,4 +1,5 @@
 import EChartsWrapper from '../EChartsWrapper'
+import { escapeHtml as esc } from '../../utils/html'
 
 const COLORS = ['#00d4ff', '#a855f7', '#00ffaa', '#fbbf24', '#f43f5e', '#06b6d4']
 
@@ -28,12 +29,11 @@ export default function RadarChart({ uiSchema, data }) {
       borderColor: '#a855f733', borderWidth: 1, padding: [10, 14],
       textStyle: { color: '#c0d0e8', fontSize: 12 },
       formatter: params => {
-        const p = params[0] ?? params
         const series = Array.isArray(params) ? params : [params]
         return series.map(s =>
-          `<div style="margin-bottom:4px"><b style="color:${COLORS[seriesData.findIndex(d => d.name === s.name) % COLORS.length]}">${s.name}</b></div>` +
+          `<div style="margin-bottom:4px"><b style="color:${COLORS[seriesData.findIndex(d => d.name === s.name) % COLORS.length]}">${esc(s.name)}</b></div>` +
           indicators.map((ind, j) =>
-            `<div style="margin:2px 0;color:#8099bb">${ind.name}: <b style="color:#fff">${s.value[j]}</b></div>`
+            `<div style="margin:2px 0;color:#8099bb">${esc(ind.name)}: <b style="color:#fff">${s.value[j]}</b></div>`
           ).join('')
         ).join('<hr style="border-color:#1e3055;margin:6px 0"/>')
       },

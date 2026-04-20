@@ -35,32 +35,8 @@ WIDGET_IDS=(
 )
 
 # =============================================================================
-# STEP 1 — CREATE TABLES
-# =============================================================================
-create_tables() {
-  step "Creating target tables"
-
-  post "api/v1/target/schema/execute" '{"sql": "CREATE TABLE IF NOT EXISTS RISK_MATRIX (id BIGINT AUTO_INCREMENT PRIMARY KEY, desk VARCHAR(50) NOT NULL, risk_type VARCHAR(50) NOT NULL, score DECIMAL(5,2) NOT NULL)"}'
-  ok "RISK_MATRIX         — heatmap: desk × risk_type intensity"
-
-  post "api/v1/target/schema/execute" '{"sql": "CREATE TABLE IF NOT EXISTS PORTFOLIO_SCORES (id BIGINT AUTO_INCREMENT PRIMARY KEY, portfolio VARCHAR(50) NOT NULL, market_score DECIMAL(5,2) NOT NULL, credit_score DECIMAL(5,2) NOT NULL, liquidity_score DECIMAL(5,2) NOT NULL, op_score DECIMAL(5,2) NOT NULL, compliance_score DECIMAL(5,2) NOT NULL)"}'
-  ok "PORTFOLIO_SCORES    — radar: 5-axis risk profile per portfolio"
-
-  post "api/v1/target/schema/execute" '{"sql": "CREATE TABLE IF NOT EXISTS VAR_UTILIZATION (id BIGINT AUTO_INCREMENT PRIMARY KEY, portfolio VARCHAR(50) NOT NULL, utilization DECIMAL(5,2) NOT NULL)"}'
-  ok "VAR_UTILIZATION     — gauge: % of VaR limit used per portfolio"
-
-  post "api/v1/target/schema/execute" '{"sql": "CREATE TABLE IF NOT EXISTS ASSET_PERFORMANCE (id BIGINT AUTO_INCREMENT PRIMARY KEY, asset VARCHAR(60) NOT NULL, risk_pct DECIMAL(6,2) NOT NULL, return_pct DECIMAL(6,2) NOT NULL, volume DECIMAL(20,2) NOT NULL)"}'
-  ok "ASSET_PERFORMANCE   — scatter: risk vs return, bubble = volume"
-
-  post "api/v1/target/schema/execute" '{"sql": "CREATE TABLE IF NOT EXISTS PORTFOLIO_AUM (id BIGINT AUTO_INCREMENT PRIMARY KEY, region VARCHAR(50) NOT NULL, asset_class VARCHAR(50) NOT NULL, aum DECIMAL(20,2) NOT NULL)"}'
-  ok "PORTFOLIO_AUM       — treemap: AUM grouped by region / asset class"
-
-  post "api/v1/target/schema/execute" '{"sql": "CREATE TABLE IF NOT EXISTS GLOBAL_EXPOSURE (id BIGINT AUTO_INCREMENT PRIMARY KEY, country VARCHAR(100) NOT NULL, exposure DECIMAL(20,2) NOT NULL)"}'
-  ok "GLOBAL_EXPOSURE     — map: choropleth exposure by country"
-}
-
-# =============================================================================
-# STEP 2 — SEED DATA
+# STEP 1 — SEED DATA
+# (All tables are created automatically at startup via db/target/schema.sql)
 # =============================================================================
 seed_data() {
 
@@ -186,7 +162,7 @@ seed_data() {
 }
 
 # =============================================================================
-# STEP 3 — REGISTER WIDGETS
+# STEP 2 — REGISTER WIDGETS
 # =============================================================================
 register_widgets() {
   step "Registering 6 new chart-type widgets"
@@ -275,7 +251,6 @@ print_banner() {
 case "${1:-setup}" in
   setup)
     print_banner
-    create_tables
     seed_data
     register_widgets
     echo
@@ -292,7 +267,6 @@ case "${1:-setup}" in
     print_banner
     step "Reset: deleting existing widgets before re-seeding"
     teardown
-    create_tables
     seed_data
     register_widgets
     echo

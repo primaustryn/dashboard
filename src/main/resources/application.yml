@@ -8,27 +8,24 @@ spring:
     init:
       mode: never
 
-  # Two separate H2 in-memory databases:
-  #   metadb  – stores WIDGET_MASTER (metadata / UI schema / SQL definitions)
-  #   targetdb – stores the actual business data the widgets query against
-  # In production, replace these with Oracle/Tibero JDBC URLs and credentials.
+  # Two separate databases.
+  # Dev defaults use H2 in-memory. Production: set env vars to Oracle/Tibero JDBC URLs.
+  # Never commit real credentials — always supply via environment variables or a secrets manager.
   datasource:
     meta:
-      url: jdbc:h2:mem:metadb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-      driver-class-name: org.h2.Driver
-      username: sa
-      password: ""
+      url: ${META_DB_URL:jdbc:h2:mem:metadb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+      driver-class-name: ${META_DB_DRIVER:org.h2.Driver}
+      username: ${META_DB_USER:sa}
+      password: ${META_DB_PASSWORD:}
     target:
-      url: jdbc:h2:mem:targetdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-      driver-class-name: org.h2.Driver
-      username: sa
-      password: ""
+      url: ${TARGET_DB_URL:jdbc:h2:mem:targetdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+      driver-class-name: ${TARGET_DB_DRIVER:org.h2.Driver}
+      username: ${TARGET_DB_USER:sa}
+      password: ${TARGET_DB_PASSWORD:}
 
-  # H2 web console: connect to metadb or targetdb by changing the JDBC URL field
   h2:
     console:
-      enabled: true
-      path: /h2-console
+      enabled: false
 
 server:
   port: 8081

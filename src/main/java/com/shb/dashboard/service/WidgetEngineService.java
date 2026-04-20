@@ -5,9 +5,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.shb.dashboard.dao.DynamicWidgetDao;
+import com.shb.dashboard.dao.DynamicWidgetDao.QueryResult;
 import com.shb.dashboard.exception.WidgetNotFoundException;
 import com.shb.dashboard.model.WidgetMeta;
 import com.shb.dashboard.model.WidgetResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -16,20 +19,10 @@ import javax.sql.DataSource;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Core orchestrator of the metadata-driven engine.
- *
- * Widget definitions are now stored across three VARCHAR-only tables:
- *   WIDGET_MASTER  – one row per widget (widget_id, target_db, is_active)
- *   WIDGET_QUERY   – query SQL in ordered ≤4 KB chunks
- *   WIDGET_CONFIG  – EAV config; each top-level JSON key as one row
- *
- * fetchWidgetMeta() reassembles the full WidgetMeta from those three tables.
- * Everything downstream (DataSource routing, query execution, response assembly)
- * is unchanged — adding a new widget still requires only database inserts.
- */
 @Service
 public class WidgetEngineService {
+
+    private static final Logger log = LoggerFactory.getLogger(WidgetEngineService.class);
 
     private final JdbcTemplate metaJdbcTemplate;
     private final DynamicWidgetDao dynamicWidgetDao;
@@ -51,19 +44,17 @@ public class WidgetEngineService {
         JsonNode   uiSchema = parseUiSchema(widgetId, meta.dynamicConfig());
         DataSource targetDs = resolveDataSource(meta.targetDb());
 
-        List<Map<String, Object>> data =
-                dynamicWidgetDao.executeTargetQuery(targetDs, meta.querySql(), params);
+        QueryResult result = dynamicWidgetDao.executeTargetQuery(targetDs, meta.querySql(), params);
 
-        return new WidgetResponse(widgetId, uiSchema, data);
+        if (result.truncated()) {
+            log.warn("Widget [{}] result truncated to {} rows", widgetId, DynamicWidgetDao.MAX_ROWS);
+        }
+        return new WidgetResponse(widgetId, uiSchema, result.rows(), result.truncated());
     }
 
     // ---- Private helpers ----------------------------------------------------
 
-    /**
-     * Reassembles WidgetMeta from the three EAV tables in three focused queries.
-     */
     private WidgetMeta fetchWidgetMeta(String widgetId) {
-        // 1. Verify the widget exists and is active; retrieve targetDb.
         String targetDb;
         try {
             targetDb = metaJdbcTemplate.queryForObject(
@@ -73,7 +64,6 @@ public class WidgetEngineService {
             throw new WidgetNotFoundException(widgetId);
         }
 
-        // 2. Reassemble query SQL from ordered chunks.
         List<Map<String, Object>> chunks = metaJdbcTemplate.queryForList(
             "SELECT chunk_text FROM WIDGET_QUERY WHERE widget_id = ? ORDER BY chunk_order",
             widgetId);
@@ -83,7 +73,6 @@ public class WidgetEngineService {
         }
         String querySql = sqlBuilder.toString();
 
-        // 3. Reconstruct dynamicConfig JSON from EAV config entries.
         List<Map<String, Object>> configRows = metaJdbcTemplate.queryForList(
             "SELECT config_key, config_val FROM WIDGET_CONFIG WHERE widget_id = ? ORDER BY config_key",
             widgetId);
@@ -94,7 +83,7 @@ public class WidgetEngineService {
             try {
                 configNode.set(key, objectMapper.readTree(val));
             } catch (JsonProcessingException ex) {
-                configNode.put(key, val); // fallback: store as plain string
+                configNode.put(key, val);
             }
         }
         String dynamicConfig = configNode.toString();

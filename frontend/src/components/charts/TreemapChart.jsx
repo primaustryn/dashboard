@@ -1,4 +1,5 @@
 import EChartsWrapper from '../EChartsWrapper'
+import { escapeHtml as esc } from '../../utils/html'
 
 const PALETTE = [
   ['#00d4ff', '#0051cc'], ['#a855f7', '#5b21b6'],
@@ -64,9 +65,10 @@ export default function TreemapChart({ uiSchema, data }) {
       borderColor: '#00d4ff33', borderWidth: 1, padding: [10, 14],
       textStyle: { color: '#c0d0e8', fontSize: 12 },
       formatter: p => {
-        const path = (p.treePathInfo ?? []).map(n => n.name).filter(Boolean)
+        const name = esc(p.name)
+        const path = (p.treePathInfo ?? []).map(n => esc(n.name)).filter(Boolean)
         return `
-          <div style="font-weight:700;color:#00d4ff;margin-bottom:6px">${p.name}</div>
+          <div style="font-weight:700;color:#00d4ff;margin-bottom:6px">${name}</div>
           <div>Value: <b style="color:#fff">${fmt(p.value)}</b></div>
           ${path.length > 1 ? `<div style="color:#607898;font-size:11px;margin-top:4px">${path.join(' › ')}</div>` : ''}
         `
