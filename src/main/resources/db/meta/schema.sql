@@ -1,6 +1,16 @@
 -- ============================================================
 -- META DB – Widget definitions + audit tables.
 -- No CLOB / TEXT / BLOB columns; every column is VARCHAR(N) or BOOLEAN.
+--
+-- Storage evolution:
+--   v1 (legacy)  – WIDGET_QUERY (raw text chunks) + WIDGET_CONFIG (EAV rows)
+--   v2 (current) – WIDGET_PAYLOAD (Base64-chunked binary-safe storage)
+--
+-- Base64 rationale: chunking raw UTF-8 at a 4 000-byte boundary can split a
+-- multi-byte character (Korean, CJK) mid-codepoint, producing corrupt data.
+-- Base64-encoding first guarantees every stored chunk contains only ASCII
+-- characters, making the 4 000 VARCHAR limit completely safe regardless of
+-- the original content's charset.
 -- ============================================================
 
 -- Core identity: one row per widget, scalar metadata only.
@@ -28,6 +38,25 @@ CREATE TABLE IF NOT EXISTS WIDGET_CONFIG (
     CONSTRAINT pk_widget_config PRIMARY KEY (widget_id, config_key),
     CONSTRAINT fk_wc_master     FOREIGN KEY (widget_id) REFERENCES WIDGET_MASTER(widget_id)
 );
+
+-- ── GitOps payload store (v2) ─────────────────────────────────────────────────
+-- Replaces WIDGET_QUERY + WIDGET_CONFIG.  Each logical payload (SQL or UI_SCHEMA)
+-- is Base64-encoded and split into ≤4 000-character chunks stored as separate rows.
+-- Reassembly: ORDER BY chunk_order, then Base64-decode the concatenated string.
+CREATE TABLE IF NOT EXISTS WIDGET_PAYLOAD (
+    widget_id    VARCHAR(50)   NOT NULL,
+    payload_type VARCHAR(20)   NOT NULL, -- 'SQL' | 'UI_SCHEMA'
+    chunk_order  INT           NOT NULL,
+    base64_data  VARCHAR(4000) NOT NULL,
+    CONSTRAINT pk_widget_payload  PRIMARY KEY (widget_id, payload_type, chunk_order),
+    CONSTRAINT fk_wp_master       FOREIGN KEY (widget_id) REFERENCES WIDGET_MASTER(widget_id),
+    CONSTRAINT ck_wp_payload_type CHECK (payload_type IN ('SQL', 'UI_SCHEMA'))
+);
+
+-- ── Legacy tables (v1) — retained for backward compatibility ──────────────────
+-- Widgets registered via the old POST /api/v1/admin/widgets endpoint still use
+-- these tables.  The engine falls back to them when WIDGET_PAYLOAD is empty.
+-- Migrate widgets to the GitOps path and remove these tables in a future release.
 
 -- Widget lifecycle audit: records every CREATE / UPDATE / DELETE / ACTIVATE / DEACTIVATE.
 CREATE TABLE IF NOT EXISTS WIDGET_AUDIT (

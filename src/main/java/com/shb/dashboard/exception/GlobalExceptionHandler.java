@@ -13,6 +13,27 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    /**
+     * SQL pre-flight dry-run failure — 422 Unprocessable Entity.
+     *
+     * 422 is semantically correct: the YAML was structurally valid (not 400)
+     * but the embedded SQL failed business validation against the target DB.
+     *
+     * The raw DB error IS included in the response because this is an admin-only
+     * endpoint — the deployer needs the exact DB feedback to diagnose and fix
+     * the SQL.  Contrast with handleDataAccess() below, which serves the public
+     * widget endpoint and must never leak schema details to untrusted callers.
+     */
+    @ExceptionHandler(SqlDryRunException.class)
+    public ProblemDetail handleSqlDryRun(SqlDryRunException ex) {
+        log.warn("SQL pre-flight failed for widget [{}]: {}", ex.getWidgetId(), ex.getDbError());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "SQL pre-flight validation failed: " + ex.getDbError());
+        pd.setProperty("widgetId", ex.getWidgetId());
+        return pd;
+    }
+
     @ExceptionHandler(WidgetNotFoundException.class)
     public ProblemDetail handleWidgetNotFound(WidgetNotFoundException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());

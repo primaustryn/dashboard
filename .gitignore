@@ -65,4 +65,4 @@ build/
 .vscode/
 
 ### Claude ###
-.claude/
+.claude/**/*
