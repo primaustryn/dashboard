@@ -1,0 +1,14 @@
+widgetId: WD_SALES_PRODUCT
+targetDb: TARGET_DB
+sql: |
+  SELECT product AS category,
+         SUM(amount) AS revenue
+  FROM   SALES_SUMMARY
+  GROUP  BY product
+  ORDER  BY revenue DESC
+uiSchema:
+  visualization: proportion
+  title:      Revenue Share by Product
+  priority:   medium
+  nameField:  category
+  valueField: revenue

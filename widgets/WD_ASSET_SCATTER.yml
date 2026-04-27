@@ -1,0 +1,19 @@
+widgetId: WD_ASSET_SCATTER
+targetDb: TARGET_DB
+sql: |
+  SELECT asset,
+         risk_pct,
+         return_pct,
+         volume
+  FROM   ASSET_PERFORMANCE
+  ORDER  BY volume DESC
+uiSchema:
+  visualization: correlation
+  title:     "Risk vs Return  (bubble = AUM)"
+  priority:  medium
+  xField:    risk_pct
+  yField:    return_pct
+  sizeField: volume
+  nameField: asset
+  xLabel:    "Risk (%)"
+  yLabel:    "Return (%)"

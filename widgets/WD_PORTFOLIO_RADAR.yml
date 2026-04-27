@@ -1,0 +1,33 @@
+widgetId: WD_PORTFOLIO_RADAR
+targetDb: TARGET_DB
+sql: |
+  SELECT portfolio,
+         market_score,
+         credit_score,
+         liquidity_score,
+         op_score,
+         compliance_score
+  FROM   PORTFOLIO_SCORES
+  ORDER  BY portfolio
+uiSchema:
+  visualization: profile
+  title:     Portfolio Risk Profile
+  priority:  medium
+  nameField: portfolio
+  indicators:
+    - name: Market
+      max:  100
+    - name: Credit
+      max:  100
+    - name: Liquidity
+      max:  100
+    - name: Operational
+      max:  100
+    - name: Compliance
+      max:  100
+  valueFields:
+    - market_score
+    - credit_score
+    - liquidity_score
+    - op_score
+    - compliance_score

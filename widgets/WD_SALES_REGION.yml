@@ -1,0 +1,20 @@
+widgetId: WD_SALES_REGION
+targetDb: TARGET_DB
+sql: |
+  SELECT region,
+         SUM(amount) AS total_amount
+  FROM   SALES_SUMMARY
+  GROUP  BY region
+  ORDER  BY total_amount DESC
+uiSchema:
+  visualization: comparison
+  title:    Sales Revenue by Region
+  priority: medium
+  xAxis:
+    field: region
+    label: Region
+  yAxis:
+    label: Revenue (USD)
+  series:
+    - name:       Revenue
+      valueField: total_amount

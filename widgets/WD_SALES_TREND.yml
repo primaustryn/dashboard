@@ -1,0 +1,20 @@
+widgetId: WD_SALES_TREND
+targetDb: TARGET_DB
+sql: |
+  SELECT sale_date    AS trade_date,
+         SUM(amount) AS daily_total
+  FROM   SALES_SUMMARY
+  GROUP  BY sale_date
+  ORDER  BY sale_date ASC
+uiSchema:
+  visualization: trend
+  title:    Monthly Revenue Trend
+  priority: medium
+  xAxis:
+    field: trade_date
+    label: Date
+  yAxis:
+    label: Revenue (USD)
+  series:
+    - name:       Revenue
+      valueField: daily_total

@@ -1,0 +1,15 @@
+widgetId: WD_AUM_TREEMAP
+targetDb: TARGET_DB
+sql: |
+  SELECT region,
+         asset_class,
+         aum
+  FROM   PORTFOLIO_AUM
+  ORDER  BY region, aum DESC
+uiSchema:
+  visualization: hierarchy
+  title:      AUM by Region & Asset Class
+  priority:   medium
+  nameField:  asset_class
+  valueField: aum
+  groupField: region

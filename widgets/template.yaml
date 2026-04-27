@@ -1,0 +1,71 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Widget GitOps YAML Template
+#
+# 이 파일을 복사해서 새 위젯을 작성하세요.
+# 파일명은 반드시 <widgetId>.yml 로 저장해야 합니다.
+#
+# 배포 명령:
+#   ./setup-gitops.sh deploy-one <widgetId>   # 단일 위젯 배포
+#   ./setup-gitops.sh deploy                  # widgets/ 전체 재배포
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── 필수 필드 ──────────────────────────────────────────────────────────────────
+
+# widgetId: 위젯의 고유 식별자.
+#   규칙: 대문자 영문자로 시작, 대문자/숫자/언더스코어만 허용, 2~50자
+#   파일명과 일치시킬 것: WD_MY_WIDGET.yml → widgetId: WD_MY_WIDGET
+widgetId: WD_MY_WIDGET
+
+# targetDb: SQL을 실행할 데이터소스 키.
+#   등록된 값만 허용됩니다 (현재: TARGET_DB).
+targetDb: TARGET_DB
+
+# sql: 위젯이 실행할 SELECT 문.
+#   - 반드시 단일 SELECT 문이어야 합니다 (세미콜론 금지).
+#   - 배포 시 DB에 실제로 dry-run 됩니다. 테이블/컬럼명이 정확해야 합니다.
+#   - "|" (block scalar)로 멀티라인 작성. 들여쓰기 2칸 유지.
+#   - 동적 파라미터는 :paramName 형태로 작성 (dry-run 시 NULL로 대체됨).
+sql: |
+  SELECT column_a,
+         column_b,
+         column_c
+  FROM   MY_TABLE
+  WHERE  some_column = :filterValue
+  ORDER  BY column_a
+
+# uiSchema: 위젯의 시각화 설정.
+#   반드시 visualization 키를 포함해야 합니다.
+uiSchema:
+
+  # visualization: 시각화 유형 (9가지 중 하나).
+  #   comparison  → 막대 차트 (항목 간 크기 비교)
+  #   proportion  → 파이/도넛 차트 (비율/구성)
+  #   trend       → 라인 차트 (시간 흐름)
+  #   distribution → 히트맵 (2차원 분포)
+  #   profile     → 레이더 차트 (다항목 평가)
+  #   utilization → 게이지 차트 (한도 대비 사용률)
+  #   correlation → 버블/산점도 차트 (두 변수 상관)
+  #   hierarchy   → 트리맵 (계층적 크기)
+  #   geography   → 지도 (국가/지역별 수치)
+  visualization: comparison
+
+  # title: 위젯 카드 상단에 표시될 제목.
+  title: "My Widget Title"
+
+  # priority: 우선순위 색상 팔레트 (선택, 기본값: medium).
+  #   critical → 빨강  (리스크 한도 초과 등 즉각 대응 필요)
+  #   high     → 주황  (당일 대응 필요)
+  #   medium   → 파랑  (일반 모니터링, 기본값)
+  #   low      → 회색  (참고용 정보)
+  priority: medium
+
+  # ── visualization별 추가 필드는 아래 주석 및 README.md 참조 ──────────────
+  # 이 템플릿은 comparison 예시입니다. 다른 유형은 해당 블록 주석 참조.
+  xAxis:
+    field: column_a   # SQL 결과의 컬럼명 (X축 카테고리)
+    label: "Category" # X축 레이블
+  yAxis:
+    label: "Value"    # Y축 레이블
+  series:
+    - name:       "Series Name"  # 범례에 표시될 시리즈 이름
+      valueField: column_b       # SQL 결과의 컬럼명 (Y축 수치)

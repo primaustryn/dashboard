@@ -1,0 +1,20 @@
+widgetId: WD_RISK_VAR
+targetDb: TARGET_DB
+sql: |
+  SELECT portfolio,
+         SUM(var_amount) AS total_var
+  FROM   RISK_SUMMARY
+  GROUP  BY portfolio
+  ORDER  BY total_var DESC
+uiSchema:
+  visualization: comparison
+  title:    Value at Risk by Portfolio
+  priority: high
+  xAxis:
+    field: portfolio
+    label: Portfolio
+  yAxis:
+    label: VaR (USD)
+  series:
+    - name:       VaR
+      valueField: total_var

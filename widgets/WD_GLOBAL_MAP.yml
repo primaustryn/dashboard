@@ -1,0 +1,13 @@
+widgetId: WD_GLOBAL_MAP
+targetDb: TARGET_DB
+sql: |
+  SELECT country,
+         exposure
+  FROM   GLOBAL_EXPOSURE
+  ORDER  BY exposure DESC
+uiSchema:
+  visualization: geography
+  title:      Global Credit Exposure
+  priority:   medium
+  nameField:  country
+  valueField: exposure

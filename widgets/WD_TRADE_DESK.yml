@@ -1,0 +1,14 @@
+widgetId: WD_TRADE_DESK
+targetDb: TARGET_DB
+sql: |
+  SELECT desk,
+         SUM(notional) AS total_notional
+  FROM   TRADE_SUMMARY
+  GROUP  BY desk
+  ORDER  BY total_notional DESC
+uiSchema:
+  visualization: proportion
+  title:      Notional by Trading Desk
+  priority:   medium
+  nameField:  desk
+  valueField: total_notional

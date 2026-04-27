@@ -1,0 +1,15 @@
+widgetId: WD_VAR_GAUGE
+targetDb: TARGET_DB
+sql: |
+  SELECT portfolio,
+         utilization
+  FROM   VAR_UTILIZATION
+  ORDER  BY portfolio
+uiSchema:
+  visualization: utilization
+  title:      VaR Limit Utilization
+  priority:   critical
+  nameField:  portfolio
+  valueField: utilization
+  max:        100
+  unit:       "%"

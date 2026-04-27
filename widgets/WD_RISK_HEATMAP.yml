@@ -1,0 +1,17 @@
+widgetId: WD_RISK_HEATMAP
+targetDb: TARGET_DB
+sql: |
+  SELECT desk,
+         risk_type,
+         score
+  FROM   RISK_MATRIX
+  ORDER  BY desk, risk_type
+uiSchema:
+  visualization: distribution
+  title:      Risk Score Matrix by Desk
+  priority:   high
+  xField:     desk
+  yField:     risk_type
+  valueField: score
+  xLabel:     Trading Desk
+  yLabel:     Risk Category

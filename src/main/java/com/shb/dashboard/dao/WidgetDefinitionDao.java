@@ -67,6 +67,7 @@ public class WidgetDefinitionDao {
     }
 
     public int delete(String widgetId) {
+        metaJdbcTemplate.update("DELETE FROM WIDGET_PAYLOAD WHERE widget_id = ?", widgetId);
         metaJdbcTemplate.update("DELETE FROM WIDGET_QUERY  WHERE widget_id = ?", widgetId);
         metaJdbcTemplate.update("DELETE FROM WIDGET_CONFIG WHERE widget_id = ?", widgetId);
         return metaJdbcTemplate.update("DELETE FROM WIDGET_MASTER WHERE widget_id = ?", widgetId);

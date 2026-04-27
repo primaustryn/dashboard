@@ -1,0 +1,20 @@
+widgetId: WD_FX_TREND
+targetDb: TARGET_DB
+sql: |
+  SELECT rate_date,
+         rate
+  FROM   FX_RATE
+  WHERE  pair = 'USD/KRW'
+  ORDER  BY rate_date ASC
+uiSchema:
+  visualization: trend
+  title:    "USD/KRW Exchange Rate Trend"
+  priority: medium
+  xAxis:
+    field: rate_date
+    label: Date
+  yAxis:
+    label: KRW per USD
+  series:
+    - name:       "USD/KRW"
+      valueField: rate
