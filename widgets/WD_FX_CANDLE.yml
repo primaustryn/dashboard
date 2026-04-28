@@ -1,0 +1,27 @@
+widgetId: WD_FX_CANDLE
+targetDb: TARGET_DB
+sql: |
+  SELECT trade_date,
+         open_price,
+         close_price,
+         low_price,
+         high_price,
+         trade_volume
+  FROM   FX_OHLC_DAILY
+  WHERE  pair = 'USD/KRW'
+  ORDER  BY trade_date ASC
+uiSchema:
+  visualization: ohlc
+  title:    "USD/KRW OHLC (최근 3개월)"
+  priority: high
+  xAxis:
+    field: trade_date
+    label: "거래일"
+  yAxis:
+    label: "환율 (KRW)"
+  openField:   open_price
+  closeField:  close_price
+  lowField:    low_price
+  highField:   high_price
+  volumeField: trade_volume   # 생략 시 볼륨 서브차트 숨김
+  maPeriods:   [5, 20]        # 이동평균선 기간 (생략 시 [5, 20] 기본값)

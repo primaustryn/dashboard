@@ -21,6 +21,7 @@
    - [correlation — 버블/산점도 차트](#57-correlation--버블산점도-차트)
    - [hierarchy — 트리맵](#58-hierarchy--트리맵)
    - [geography — 지도](#59-geography--지도)
+   - [ohlc — 캔들스틱 차트](#510-ohlc--캔들스틱-차트)
 6. [priority 색상 팔레트](#6-priority-색상-팔레트)
 7. [SQL 작성 규칙](#7-sql-작성-규칙)
 8. [에러 응답 해석](#8-에러-응답-해석)
@@ -483,6 +484,60 @@ uiSchema:
   valueField: exposure
 ```
 
+### 5.10 ohlc — 캔들스틱 차트
+
+주가·환율 등 OHLC(시가/고가/저가/종가) 데이터를 캔들스틱으로 표시합니다.  
+이동평균선(MA)과 거래량 서브차트를 함께 표시할 수 있습니다.
+
+**추가 필드:**
+
+| 필드 | 필수 | 설명 |
+|------|------|------|
+| `xAxis.field` | ✅ | 날짜/시간 컬럼명 |
+| `openField` | ✅ | 시가 컬럼명 |
+| `closeField` | ✅ | 종가 컬럼명 |
+| `lowField` | ✅ | 저가 컬럼명 |
+| `highField` | ✅ | 고가 컬럼명 |
+| `volumeField` | ❌ | 거래량 컬럼명 (지정 시 하단 볼륨 차트 표시) |
+| `maPeriods` | ❌ | 이동평균 기간 배열 (기본값: `[5, 20]`) |
+
+**색상:**
+- 양봉(상승): 청색(`#00d4ff`)
+- 음봉(하락): 적색(`#f43f5e`)
+
+**예시:**
+
+```yaml
+widgetId: WD_FX_CANDLE
+targetDb: TARGET_DB
+sql: |
+  SELECT trade_date,
+         open_price,
+         close_price,
+         low_price,
+         high_price,
+         trade_volume
+  FROM   FX_OHLC_DAILY
+  WHERE  pair      = 'USD/KRW'
+    AND  trade_date >= ADD_MONTHS(SYSDATE, -3)
+  ORDER  BY trade_date ASC
+uiSchema:
+  visualization: ohlc
+  title:    "USD/KRW OHLC (최근 3개월)"
+  priority: high
+  xAxis:
+    field: trade_date
+    label: "거래일"
+  yAxis:
+    label: "환율 (KRW)"
+  openField:   open_price
+  closeField:  close_price
+  lowField:    low_price
+  highField:   high_price
+  volumeField: trade_volume
+  maPeriods:   [5, 20]
+```
+
 ---
 
 ## 6. priority 색상 팔레트
@@ -590,3 +645,4 @@ WHERE  desk_name = '서울데스크'
 | WD_ASSET_SCATTER.yml | WD_ASSET_SCATTER | correlation | medium |
 | WD_AUM_TREEMAP.yml | WD_AUM_TREEMAP | hierarchy | medium |
 | WD_GLOBAL_MAP.yml | WD_GLOBAL_MAP | geography | medium |
+| WD_FX_CANDLE.yml | WD_FX_CANDLE | ohlc | high |

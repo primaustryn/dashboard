@@ -23,6 +23,16 @@ public class SqlDryRunException extends RuntimeException {
         this.dbError  = dbError;
     }
 
+    /**
+     * No-cause variant used when the rejection originates within the engine itself
+     * (e.g. query cost exceeds the configured threshold) rather than from a DB exception.
+     */
+    public SqlDryRunException(String widgetId, String dbError) {
+        super("SQL pre-flight failed for widget [" + widgetId + "]: " + dbError);
+        this.widgetId = widgetId;
+        this.dbError  = dbError;
+    }
+
     public String getWidgetId() { return widgetId; }
     public String getDbError()  { return dbError; }
 }

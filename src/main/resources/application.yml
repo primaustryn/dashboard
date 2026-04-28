@@ -27,8 +27,35 @@ spring:
     console:
       enabled: false
 
+  # ── Distributed cache (Redis / Lettuce) ────────────────────────────────────
+  # Dev default: localhost:6379 (no password).
+  # Production: supply REDIS_HOST, REDIS_PORT, REDIS_PASSWORD via env / secrets manager.
+  # Never commit real credentials here.
+  data:
+    redis:
+      host:     ${REDIS_HOST:localhost}
+      port:     ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout:  2000ms        # command timeout — fail-fast rather than blocking a request thread
+      lettuce:
+        pool:
+          max-active: 16      # max concurrent Redis connections per node
+          max-idle:    8
+          min-idle:    2
+          max-wait:    500ms  # time to wait for a pool slot before throwing an exception
+
 server:
   port: 8081
+
+# ── Widget deployment tuning ──────────────────────────────────────────────────
+dashboard:
+  widget:
+    deploy:
+      # Oracle/Tibero optimizer cost threshold. Queries whose root-node cost exceeds
+      # this value are rejected at deploy time to prevent accidental full-table scans
+      # from DoS-ing the Target DB connection pool. Tune via load-testing against
+      # your specific schema; 10 000 is a conservative default for OLAP widgets.
+      max-query-cost: ${MAX_QUERY_COST:10000.0}
 
 logging:
   level:

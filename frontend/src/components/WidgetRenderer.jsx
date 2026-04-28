@@ -1,12 +1,13 @@
-import BarChart     from './charts/BarChart'
-import PieChart     from './charts/PieChart'
-import LineChart    from './charts/LineChart'
-import HeatmapChart from './charts/HeatmapChart'
-import RadarChart   from './charts/RadarChart'
-import GaugeChart   from './charts/GaugeChart'
-import ScatterChart from './charts/ScatterChart'
-import TreemapChart from './charts/TreemapChart'
-import GeoChart     from './charts/GeoChart'
+import BarChart          from './charts/BarChart'
+import PieChart          from './charts/PieChart'
+import LineChart         from './charts/LineChart'
+import HeatmapChart      from './charts/HeatmapChart'
+import RadarChart        from './charts/RadarChart'
+import GaugeChart        from './charts/GaugeChart'
+import ScatterChart      from './charts/ScatterChart'
+import TreemapChart      from './charts/TreemapChart'
+import GeoChart          from './charts/GeoChart'
+import CandlestickChart  from './charts/CandlestickChart'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Semantic Visualization Registry
@@ -51,6 +52,9 @@ const SEMANTIC_REGISTRY = {
 
   // Where in the world does this exposure / position exist?  → choropleth map
   geography:    GeoChart,
+
+  // How did a price / rate move over a period?  → candlestick (OHLC) chart
+  ohlc:         CandlestickChart,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,9 +72,10 @@ const LEGACY_REGISTRY = {
   heatmap: HeatmapChart,
   radar:   RadarChart,
   gauge:   GaugeChart,
-  scatter: ScatterChart,
-  treemap: TreemapChart,
-  map:     GeoChart,
+  scatter:      ScatterChart,
+  treemap:      TreemapChart,
+  map:          GeoChart,
+  candlestick:  CandlestickChart,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

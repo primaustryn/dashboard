@@ -90,3 +90,17 @@ CREATE TABLE IF NOT EXISTS GLOBAL_EXPOSURE (
     exposure DECIMAL(20,2) NOT NULL,
     CONSTRAINT pk_global_exposure PRIMARY KEY (id)
 );
+
+-- ── OHLC price data ───────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS FX_OHLC_DAILY (
+    id           BIGINT        NOT NULL AUTO_INCREMENT,
+    pair         VARCHAR(20)   NOT NULL,
+    trade_date   DATE          NOT NULL,
+    open_price   DECIMAL(12,4) NOT NULL,
+    close_price  DECIMAL(12,4) NOT NULL,
+    low_price    DECIMAL(12,4) NOT NULL,
+    high_price   DECIMAL(12,4) NOT NULL,
+    trade_volume DECIMAL(22,2) NOT NULL,
+    CONSTRAINT pk_fx_ohlc_daily PRIMARY KEY (id)
+);

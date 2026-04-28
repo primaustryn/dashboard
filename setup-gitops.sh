@@ -35,6 +35,7 @@ ALL_WIDGETS=(
   WD_ASSET_SCATTER
   WD_AUM_TREEMAP
   WD_GLOBAL_MAP
+  WD_FX_CANDLE
 )
 
 # ─── Output helpers ───────────────────────────────────────────────────────────
@@ -623,6 +624,92 @@ seed_data() {
     {"country":"Saudi Arabia",   "exposure": 2700000000}
   ]'
   ok "18 rows"
+
+  step "Seeding FX_OHLC_DAILY (79 rows — USD/KRW daily OHLC, Jan–Apr 2026)"
+  curl -sf -X POST -H "$H_JSON" "$BASE/api/v1/target/FX_OHLC_DAILY/rows/batch" -d '[
+    {"pair":"USD/KRW","trade_date":"2026-01-05","open_price":1380.50,"close_price":1384.20,"low_price":1378.80,"high_price":1386.40,"trade_volume":9200000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-06","open_price":1384.20,"close_price":1381.60,"low_price":1379.90,"high_price":1386.30,"trade_volume":8340000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-07","open_price":1381.60,"close_price":1385.30,"low_price":1380.40,"high_price":1388.20,"trade_volume":9780000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-08","open_price":1385.30,"close_price":1388.90,"low_price":1383.80,"high_price":1391.50,"trade_volume":10670000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-09","open_price":1388.90,"close_price":1386.30,"low_price":1385.10,"high_price":1391.40,"trade_volume":9120000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-12","open_price":1386.30,"close_price":1390.00,"low_price":1385.20,"high_price":1392.80,"trade_volume":10240000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-13","open_price":1390.00,"close_price":1393.70,"low_price":1388.60,"high_price":1396.20,"trade_volume":11380000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-14","open_price":1393.70,"close_price":1391.10,"low_price":1389.80,"high_price":1396.10,"trade_volume":9870000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-15","open_price":1391.10,"close_price":1394.80,"low_price":1390.00,"high_price":1397.40,"trade_volume":10560000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-16","open_price":1394.80,"close_price":1398.50,"low_price":1393.40,"high_price":1401.20,"trade_volume":11890000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-19","open_price":1398.50,"close_price":1395.90,"low_price":1394.60,"high_price":1401.10,"trade_volume":10230000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-20","open_price":1395.90,"close_price":1399.60,"low_price":1394.80,"high_price":1402.40,"trade_volume":11120000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-21","open_price":1399.60,"close_price":1403.30,"low_price":1398.40,"high_price":1406.10,"trade_volume":12340000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-22","open_price":1403.30,"close_price":1400.70,"low_price":1399.40,"high_price":1406.20,"trade_volume":10780000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-23","open_price":1400.70,"close_price":1404.40,"low_price":1399.60,"high_price":1407.80,"trade_volume":11560000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-26","open_price":1404.40,"close_price":1408.10,"low_price":1403.20,"high_price":1410.90,"trade_volume":12780000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-27","open_price":1408.10,"close_price":1405.50,"low_price":1404.20,"high_price":1410.80,"trade_volume":11230000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-28","open_price":1405.50,"close_price":1409.20,"low_price":1404.40,"high_price":1412.60,"trade_volume":12100000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-29","open_price":1409.20,"close_price":1412.90,"low_price":1408.10,"high_price":1415.80,"trade_volume":13450000000},
+    {"pair":"USD/KRW","trade_date":"2026-01-30","open_price":1412.90,"close_price":1410.30,"low_price":1409.20,"high_price":1415.60,"trade_volume":11870000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-02","open_price":1410.30,"close_price":1414.00,"low_price":1409.20,"high_price":1416.80,"trade_volume":12560000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-03","open_price":1414.00,"close_price":1417.70,"low_price":1412.80,"high_price":1420.50,"trade_volume":13780000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-04","open_price":1417.70,"close_price":1415.10,"low_price":1413.90,"high_price":1420.40,"trade_volume":12100000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-05","open_price":1415.10,"close_price":1418.80,"low_price":1414.00,"high_price":1421.70,"trade_volume":12890000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-06","open_price":1418.80,"close_price":1422.50,"low_price":1417.70,"high_price":1425.30,"trade_volume":14120000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-09","open_price":1422.50,"close_price":1419.90,"low_price":1418.80,"high_price":1425.20,"trade_volume":12670000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-10","open_price":1419.90,"close_price":1423.60,"low_price":1418.80,"high_price":1426.40,"trade_volume":13450000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-11","open_price":1423.60,"close_price":1427.30,"low_price":1422.40,"high_price":1430.10,"trade_volume":14780000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-12","open_price":1427.30,"close_price":1424.70,"low_price":1423.60,"high_price":1429.80,"trade_volume":13120000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-13","open_price":1424.70,"close_price":1428.40,"low_price":1423.60,"high_price":1431.20,"trade_volume":13990000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-16","open_price":1428.40,"close_price":1432.10,"low_price":1427.30,"high_price":1434.90,"trade_volume":15230000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-17","open_price":1432.10,"close_price":1429.50,"low_price":1428.40,"high_price":1434.80,"trade_volume":13560000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-18","open_price":1429.50,"close_price":1433.20,"low_price":1428.40,"high_price":1436.00,"trade_volume":14340000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-19","open_price":1433.20,"close_price":1436.90,"low_price":1432.10,"high_price":1439.70,"trade_volume":15780000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-20","open_price":1436.90,"close_price":1434.30,"low_price":1433.20,"high_price":1439.60,"trade_volume":14120000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-23","open_price":1434.30,"close_price":1438.00,"low_price":1433.20,"high_price":1440.80,"trade_volume":15100000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-24","open_price":1438.00,"close_price":1441.70,"low_price":1436.90,"high_price":1444.50,"trade_volume":16340000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-25","open_price":1441.70,"close_price":1439.10,"low_price":1438.00,"high_price":1444.40,"trade_volume":14780000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-26","open_price":1439.10,"close_price":1442.80,"low_price":1438.00,"high_price":1445.60,"trade_volume":15560000000},
+    {"pair":"USD/KRW","trade_date":"2026-02-27","open_price":1442.80,"close_price":1446.50,"low_price":1441.70,"high_price":1449.30,"trade_volume":16890000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-02","open_price":1446.50,"close_price":1443.90,"low_price":1442.80,"high_price":1449.20,"trade_volume":15230000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-03","open_price":1443.90,"close_price":1447.60,"low_price":1442.80,"high_price":1450.40,"trade_volume":15990000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-04","open_price":1447.60,"close_price":1451.30,"low_price":1446.50,"high_price":1454.10,"trade_volume":17120000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-05","open_price":1451.30,"close_price":1448.70,"low_price":1447.60,"high_price":1453.80,"trade_volume":15670000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-06","open_price":1448.70,"close_price":1452.40,"low_price":1447.60,"high_price":1455.20,"trade_volume":16340000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-09","open_price":1452.40,"close_price":1456.10,"low_price":1451.30,"high_price":1458.90,"trade_volume":17560000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-10","open_price":1456.10,"close_price":1453.50,"low_price":1452.40,"high_price":1458.80,"trade_volume":15890000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-11","open_price":1453.50,"close_price":1457.20,"low_price":1452.40,"high_price":1460.00,"trade_volume":16780000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-12","open_price":1457.20,"close_price":1460.90,"low_price":1456.10,"high_price":1463.70,"trade_volume":18100000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-13","open_price":1460.90,"close_price":1458.30,"low_price":1457.20,"high_price":1463.60,"trade_volume":16450000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-16","open_price":1458.30,"close_price":1462.00,"low_price":1457.20,"high_price":1464.80,"trade_volume":17340000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-17","open_price":1462.00,"close_price":1465.70,"low_price":1460.90,"high_price":1468.50,"trade_volume":18670000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-18","open_price":1465.70,"close_price":1463.10,"low_price":1462.00,"high_price":1468.40,"trade_volume":16890000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-19","open_price":1463.10,"close_price":1466.80,"low_price":1462.00,"high_price":1469.60,"trade_volume":17780000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-20","open_price":1466.80,"close_price":1470.50,"low_price":1465.70,"high_price":1473.30,"trade_volume":19100000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-23","open_price":1470.50,"close_price":1467.90,"low_price":1466.80,"high_price":1473.20,"trade_volume":17450000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-24","open_price":1467.90,"close_price":1471.60,"low_price":1466.80,"high_price":1474.40,"trade_volume":18340000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-25","open_price":1471.60,"close_price":1475.30,"low_price":1470.50,"high_price":1478.10,"trade_volume":19670000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-26","open_price":1475.30,"close_price":1472.70,"low_price":1471.60,"high_price":1478.00,"trade_volume":17890000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-27","open_price":1472.70,"close_price":1476.40,"low_price":1471.60,"high_price":1479.20,"trade_volume":18780000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-30","open_price":1476.40,"close_price":1480.10,"low_price":1475.30,"high_price":1482.90,"trade_volume":20100000000},
+    {"pair":"USD/KRW","trade_date":"2026-03-31","open_price":1480.10,"close_price":1477.50,"low_price":1476.40,"high_price":1482.80,"trade_volume":18340000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-01","open_price":1477.50,"close_price":1481.20,"low_price":1476.40,"high_price":1484.00,"trade_volume":19120000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-02","open_price":1481.20,"close_price":1484.90,"low_price":1480.10,"high_price":1487.70,"trade_volume":20450000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-03","open_price":1484.90,"close_price":1482.30,"low_price":1481.20,"high_price":1487.60,"trade_volume":18780000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-06","open_price":1482.30,"close_price":1486.00,"low_price":1481.20,"high_price":1488.80,"trade_volume":19560000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-07","open_price":1486.00,"close_price":1489.70,"low_price":1484.90,"high_price":1492.50,"trade_volume":20890000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-08","open_price":1489.70,"close_price":1487.10,"low_price":1486.00,"high_price":1492.40,"trade_volume":19120000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-09","open_price":1487.10,"close_price":1490.80,"low_price":1486.00,"high_price":1493.60,"trade_volume":20010000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-10","open_price":1490.80,"close_price":1494.50,"low_price":1489.70,"high_price":1497.30,"trade_volume":21340000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-13","open_price":1494.50,"close_price":1491.90,"low_price":1490.80,"high_price":1497.20,"trade_volume":19670000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-14","open_price":1491.90,"close_price":1495.60,"low_price":1490.80,"high_price":1498.40,"trade_volume":20560000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-15","open_price":1495.60,"close_price":1499.30,"low_price":1494.50,"high_price":1502.10,"trade_volume":21890000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-16","open_price":1499.30,"close_price":1496.70,"low_price":1495.60,"high_price":1502.00,"trade_volume":20120000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-17","open_price":1496.70,"close_price":1500.40,"low_price":1495.60,"high_price":1503.20,"trade_volume":20990000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-20","open_price":1500.40,"close_price":1504.10,"low_price":1499.30,"high_price":1506.90,"trade_volume":22230000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-21","open_price":1504.10,"close_price":1501.50,"low_price":1500.40,"high_price":1506.80,"trade_volume":20560000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-22","open_price":1501.50,"close_price":1505.20,"low_price":1500.40,"high_price":1508.00,"trade_volume":21450000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-23","open_price":1505.20,"close_price":1508.90,"low_price":1504.10,"high_price":1511.70,"trade_volume":22780000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-24","open_price":1508.90,"close_price":1506.30,"low_price":1505.20,"high_price":1511.60,"trade_volume":21100000000},
+    {"pair":"USD/KRW","trade_date":"2026-04-25","open_price":1506.30,"close_price":1510.00,"low_price":1505.20,"high_price":1512.80,"trade_volume":21990000000}
+  ]'
+  ok "79 rows"
 }
 
 # =============================================================================

@@ -42,6 +42,27 @@
 			<artifactId>spring-boot-starter-jdbc</artifactId>
 		</dependency>
 
+		<!--
+		    Distributed cache (Lettuce client is the default).
+		    Replaces the local Caffeine cache so all nodes share a single cache namespace.
+		    Lettuce is non-blocking and multiplexes connections — superior to Jedis for
+		    a high-concurrency dashboard under 100+ concurrent requests per node.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+
+		<!--
+		    Spring Cache abstraction — activates @EnableCaching, @Cacheable, CacheManager.
+		    Must be declared separately even when spring-boot-starter-data-redis is present;
+		    the Redis starter provides the store, the cache starter wires the abstraction.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-cache</artifactId>
+		</dependency>
+
 		<!-- H2 in-memory DB — simulates Oracle/Tibero in this air-gapped template -->
 		<dependency>
 			<groupId>com.h2database</groupId>
