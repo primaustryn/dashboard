@@ -64,6 +64,11 @@ public class WidgetEngineService {
     private final ObjectMapper             objectMapper;
     private final CacheManager             cacheManager;
 
+    /**
+     * Injects all engine collaborators: the meta-DB JdbcTemplate for WIDGET_MASTER lookups,
+     * the payload and dynamic DAOs, the DataSource registry for target-DB routing,
+     * the ObjectMapper for uiSchema parsing, and the CacheManager for Redis-first caching.
+     */
     public WidgetEngineService(JdbcTemplate metaJdbcTemplate,
                                WidgetPayloadDao widgetPayloadDao,
                                DynamicWidgetDao dynamicWidgetDao,
@@ -255,6 +260,11 @@ public class WidgetEngineService {
     // Meta resolution — dual-path DB load (called only on cache miss)
     // =========================================================================
 
+    /**
+     * Loads widget metadata from the meta-DB, choosing the storage path based on availability:
+     * primary path (GitOps / WIDGET_PAYLOAD) if a SQL payload exists; legacy EAV path
+     * (WIDGET_QUERY + WIDGET_CONFIG) otherwise.  Called only on a cache miss.
+     */
     private WidgetMeta loadWidgetMetaFromDb(String widgetId) {
         String targetDb  = loadTargetDb(widgetId);
         String sqlBase64 = widgetPayloadDao.loadAssembled(widgetId, "SQL");
@@ -269,6 +279,12 @@ public class WidgetEngineService {
 
     // ── Primary path (GitOps / WIDGET_PAYLOAD) ────────────────────────────────
 
+    /**
+     * Loads the widget's SQL and uiSchema from WIDGET_PAYLOAD (the GitOps / Base64 path).
+     * Both payloads are Base64-decoded before being stored in {@link WidgetMeta}.
+     * Throws {@link IllegalStateException} if a SQL payload exists but the UI_SCHEMA
+     * payload is missing — indicates an incomplete deploy that should be re-run.
+     */
     private WidgetMeta loadFromPayloadTable(String widgetId, String targetDb, String sqlBase64) {
         String querySql = decodeBase64(sqlBase64);
 
@@ -318,6 +334,11 @@ public class WidgetEngineService {
     // Private helpers
     // =========================================================================
 
+    /**
+     * Queries WIDGET_MASTER for the {@code target_db} value of the given widget.
+     * Throws {@link com.shb.dashboard.exception.WidgetNotFoundException} if the widget
+     * does not exist or is inactive ({@code is_active = FALSE}).
+     */
     private String loadTargetDb(String widgetId) {
         try {
             return metaJdbcTemplate.queryForObject(
@@ -328,10 +349,17 @@ public class WidgetEngineService {
         }
     }
 
+    /** Decodes a standard Base64-encoded string back to its original UTF-8 text. */
     private static String decodeBase64(String base64) {
         return new String(Base64.getDecoder().decode(base64), StandardCharsets.UTF_8);
     }
 
+    /**
+     * Parses the uiSchema JSON string into a {@link com.fasterxml.jackson.databind.JsonNode}
+     * for direct serialization in the API response.
+     * Throws {@link IllegalStateException} if the stored JSON is malformed — this indicates
+     * data corruption in WIDGET_PAYLOAD and requires a widget re-deploy to fix.
+     */
     private JsonNode parseUiSchema(String widgetId, String dynamicConfig) {
         try {
             return objectMapper.readTree(dynamicConfig);
@@ -341,6 +369,12 @@ public class WidgetEngineService {
         }
     }
 
+    /**
+     * Looks up the live {@link DataSource} for the given {@code targetDb} key in the registry.
+     * Throws {@link IllegalArgumentException} if the key is not registered, which indicates
+     * the widget was deployed with a {@code targetDb} value that has no corresponding
+     * pool wiring in {@link com.shb.dashboard.config.DataSourceConfig}.
+     */
     private DataSource resolveDataSource(String targetDb) {
         DataSource ds = dataSourceRegistry.get(targetDb);
         if (ds == null) {

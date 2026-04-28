@@ -32,6 +32,7 @@ public class DataSourceConfig {
 
     // ── Meta DB ───────────────────────────────────────────────────────────────
 
+    /** Binds the {@code spring.datasource.meta.*} properties to a typed properties object. */
     @Bean
     @Primary
     @ConfigurationProperties("spring.datasource.meta")
@@ -39,6 +40,11 @@ public class DataSourceConfig {
         return new DataSourceProperties();
     }
 
+    /**
+     * Builds the meta-DB connection pool (HikariCP) from the bound properties.
+     * Declared {@code @Primary} so that Spring's auto-configured {@link org.springframework.jdbc.core.JdbcTemplate}
+     * targets the meta-DB by default, without requiring an explicit {@code @Qualifier} on every injection point.
+     */
     @Bean("metaDataSource")
     @Primary
     public DataSource metaDataSource(
@@ -47,6 +53,11 @@ public class DataSourceConfig {
         return props.initializeDataSourceBuilder().build();
     }
 
+    /**
+     * Runs {@code db/meta/schema.sql} against the meta-DB on application startup to create
+     * WIDGET_MASTER, WIDGET_QUERY, WIDGET_CONFIG, WIDGET_PAYLOAD, WIDGET_AUDIT, and AUDIT_LOG.
+     * The script is written to be idempotent (CREATE TABLE IF NOT EXISTS) so re-runs are safe.
+     */
     @Bean
     public DataSourceInitializer metaDataSourceInitializer(
             @Qualifier("metaDataSource") DataSource ds) {
@@ -61,18 +72,25 @@ public class DataSourceConfig {
 
     // ── Target DB ─────────────────────────────────────────────────────────────
 
+    /** Binds the {@code spring.datasource.target.*} properties to a typed properties object. */
     @Bean
     @ConfigurationProperties("spring.datasource.target")
     public DataSourceProperties targetDataSourceProperties() {
         return new DataSourceProperties();
     }
 
+    /** Builds the target-DB connection pool from the bound properties. */
     @Bean("targetDataSource")
     public DataSource targetDataSource(
             @Qualifier("targetDataSourceProperties") DataSourceProperties props) {
         return props.initializeDataSourceBuilder().build();
     }
 
+    /**
+     * Runs {@code db/target/schema.sql} against the target-DB on startup to create
+     * business-data tables (SALES_SUMMARY, TRADE_SUMMARY, FX_OHLC_DAILY, etc.).
+     * The script is idempotent so re-running the application never drops existing data.
+     */
     @Bean
     public DataSourceInitializer targetDataSourceInitializer(
             @Qualifier("targetDataSource") DataSource ds) {
@@ -89,6 +107,12 @@ public class DataSourceConfig {
     // Maps the target_db column value in WIDGET_MASTER to a live DataSource.
     // Adding a new target = one new entry here; no other code changes required.
 
+    /**
+     * Returns a registry that maps {@code target_db} key strings (as stored in WIDGET_MASTER)
+     * to live DataSource instances.  Widget deploy and engine services look up the correct
+     * DataSource at runtime using this registry, keeping widget definitions decoupled from
+     * connection-pool wiring.
+     */
     @Bean
     public Map<String, DataSource> dataSourceRegistry(
             @Qualifier("targetDataSource") DataSource targetDs) {

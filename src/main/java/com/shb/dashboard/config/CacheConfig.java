@@ -60,6 +60,18 @@ public class CacheConfig {
      */
     public static final String DATA_CACHE = "widgetDataCache";
 
+    /**
+     * Builds the distributed {@link RedisCacheManager} with per-cache TTL overrides.
+     *
+     * <p>Serialization: keys are stored as plain UTF-8 strings for human readability in Redis CLI
+     * (e.g. {@code widgetMetadataCache::WD_SALES_REGION}).  Values are stored as polymorphic
+     * JSON via {@link GenericJackson2JsonRedisSerializer}, which embeds a {@code @class} type
+     * hint enabling safe cross-node deserialization even when object structure evolves.
+     *
+     * <p>TTL strategy: the default is 30 minutes; per-cache overrides narrow this to
+     * 24 hours for metadata (changes only on deploy) and 5 minutes for query results
+     * (short enough to reflect Target DB changes without hammering the DB on every request).
+     */
     @Bean
     public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
         // Base config shared by all caches unless overridden below.

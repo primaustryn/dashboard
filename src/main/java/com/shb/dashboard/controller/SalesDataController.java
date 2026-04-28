@@ -22,22 +22,35 @@ public class SalesDataController {
 
     private final SalesDataService salesDataService;
 
+    /** Injects the service that persists SALES_SUMMARY records. */
     public SalesDataController(SalesDataService salesDataService) {
         this.salesDataService = salesDataService;
     }
 
+    /**
+     * Inserts a single {@link SalesRecord} into SALES_SUMMARY.
+     * Returns 201 Created with the collection URI in the {@code Location} header.
+     */
     @PostMapping
     public ResponseEntity<Void> add(@RequestBody SalesRecord record) {
         salesDataService.add(record);
         return ResponseEntity.created(URI.create("/api/v1/data/sales")).build();
     }
 
+    /**
+     * Inserts multiple {@link SalesRecord} objects into SALES_SUMMARY in a single JDBC batch.
+     * Returns 201 Created.
+     */
     @PostMapping("/batch")
     public ResponseEntity<Void> addBatch(@RequestBody List<SalesRecord> records) {
         salesDataService.addBatch(records);
         return ResponseEntity.created(URI.create("/api/v1/data/sales")).build();
     }
 
+    /**
+     * Returns all rows from SALES_SUMMARY ordered by {@code sale_date} descending,
+     * then by {@code id} descending.  Intended for data inspection during development.
+     */
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> getAll() {
         return ResponseEntity.ok(salesDataService.getAll());

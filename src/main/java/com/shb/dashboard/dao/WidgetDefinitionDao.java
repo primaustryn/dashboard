@@ -28,6 +28,10 @@ public class WidgetDefinitionDao {
     private final JdbcTemplate metaJdbcTemplate;
     private final ObjectMapper  objectMapper;
 
+    /**
+     * Injects the meta-DB JdbcTemplate and the shared ObjectMapper used for
+     * JSON serialization and deserialization of the EAV config entries.
+     */
     public WidgetDefinitionDao(JdbcTemplate metaJdbcTemplate, ObjectMapper objectMapper) {
         this.metaJdbcTemplate = metaJdbcTemplate;
         this.objectMapper     = objectMapper;
@@ -37,6 +41,10 @@ public class WidgetDefinitionDao {
     // Write operations
     // =========================================================================
 
+    /**
+     * Inserts a new widget into WIDGET_MASTER and writes its SQL in chunks to
+     * WIDGET_QUERY and its uiSchema keys as EAV rows to WIDGET_CONFIG.
+     */
     public void insert(WidgetDefinition def) {
         metaJdbcTemplate.update(
             "INSERT INTO WIDGET_MASTER (widget_id, target_db, is_active) VALUES (?, ?, ?)",
@@ -46,6 +54,12 @@ public class WidgetDefinitionDao {
         insertConfigEntries(def.getWidgetId(), def.getDynamicConfig());
     }
 
+    /**
+     * Updates the {@code target_db} in WIDGET_MASTER, then atomically replaces all
+     * WIDGET_QUERY chunks and WIDGET_CONFIG EAV rows for the widget.
+     *
+     * @return the number of WIDGET_MASTER rows updated (0 means the widget was not found)
+     */
     public int update(WidgetDefinition def) {
         int updated = metaJdbcTemplate.update(
             "UPDATE WIDGET_MASTER SET target_db = ? WHERE widget_id = ?",
@@ -60,12 +74,23 @@ public class WidgetDefinitionDao {
         return updated;
     }
 
+    /**
+     * Flips the {@code is_active} flag on WIDGET_MASTER for the given widget.
+     *
+     * @return 1 on success, 0 if no WIDGET_MASTER row was found for the widgetId
+     */
     public int setActive(String widgetId, boolean active) {
         return metaJdbcTemplate.update(
             "UPDATE WIDGET_MASTER SET is_active = ? WHERE widget_id = ?", active, widgetId
         );
     }
 
+    /**
+     * Deletes the widget from all four meta tables in dependency order:
+     * WIDGET_PAYLOAD → WIDGET_QUERY → WIDGET_CONFIG → WIDGET_MASTER.
+     *
+     * @return the number of WIDGET_MASTER rows deleted (0 = widget not found)
+     */
     public int delete(String widgetId) {
         metaJdbcTemplate.update("DELETE FROM WIDGET_PAYLOAD WHERE widget_id = ?", widgetId);
         metaJdbcTemplate.update("DELETE FROM WIDGET_QUERY  WHERE widget_id = ?", widgetId);
@@ -77,10 +102,12 @@ public class WidgetDefinitionDao {
     // Read operations
     // =========================================================================
 
+    /** Returns assembled {@link WidgetDefinition} objects for all widgets, active or inactive. */
     public List<WidgetDefinition> findAll() {
         return assembleDefinitions(false);
     }
 
+    /** Returns assembled {@link WidgetDefinition} objects for widgets with {@code is_active = true} only. */
     public List<WidgetDefinition> findActive() {
         return assembleDefinitions(true);
     }
@@ -89,6 +116,11 @@ public class WidgetDefinitionDao {
     // Private helpers — write
     // =========================================================================
 
+    /**
+     * Splits {@code querySql} into ≤ {@value #CHUNK_SIZE}-character segments and inserts
+     * them in order into WIDGET_QUERY.  Always writes at least one row (empty string)
+     * so that the re-assembly query always returns a result for any registered widget.
+     */
     private void insertQueryChunks(String widgetId, String querySql) {
         String sql = (querySql == null) ? "" : querySql;
         int order = 0;
@@ -108,6 +140,11 @@ public class WidgetDefinitionDao {
         }
     }
 
+    /**
+     * Parses {@code dynamicConfig} as a JSON object and stores each top-level key as an
+     * independent EAV row in WIDGET_CONFIG.  Non-JSON {@code dynamicConfig} values throw
+     * {@link IllegalArgumentException}.
+     */
     private void insertConfigEntries(String widgetId, String dynamicConfig) {
         if (dynamicConfig == null || dynamicConfig.isBlank()) return;
         JsonNode root;
@@ -191,6 +228,7 @@ public class WidgetDefinitionDao {
      * Reconstructs a JSON object string from EAV entries.
      * Each config_val is a JSON-encoded value that is parsed back to a JsonNode,
      * preserving the original types (string, number, boolean, array, object).
+     * Falls back to storing the raw string value if parsing fails.
      */
     private String rebuildJson(String widgetId, Map<String, String> entries) {
         ObjectNode node = objectMapper.createObjectNode();

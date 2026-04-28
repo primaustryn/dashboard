@@ -36,6 +36,7 @@ public class WidgetDeployController {
 
     private final WidgetDeployService widgetDeployService;
 
+    /** Injects the GitOps deployment pipeline service. */
     public WidgetDeployController(WidgetDeployService widgetDeployService) {
         this.widgetDeployService = widgetDeployService;
     }

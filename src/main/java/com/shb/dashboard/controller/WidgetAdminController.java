@@ -24,16 +24,25 @@ public class WidgetAdminController {
 
     private final WidgetDefinitionService widgetDefinitionService;
 
+    /** Injects the service that manages WIDGET_MASTER registrations and audit events. */
     public WidgetAdminController(WidgetDefinitionService widgetDefinitionService) {
         this.widgetDefinitionService = widgetDefinitionService;
     }
 
+    /**
+     * Registers a new widget by writing to WIDGET_MASTER, WIDGET_QUERY, and WIDGET_CONFIG.
+     * Returns 201 Created with a {@code Location} header pointing to the widget data endpoint.
+     */
     @PostMapping
     public ResponseEntity<Void> register(@RequestBody WidgetDefinition def) {
         widgetDefinitionService.register(def);
         return ResponseEntity.created(URI.create("/api/v1/widgets/" + def.getWidgetId())).build();
     }
 
+    /**
+     * Lists widget definitions.  When {@code activeOnly=true}, returns only widgets with
+     * {@code is_active = true}; otherwise returns all widgets regardless of active state.
+     */
     @GetMapping
     public ResponseEntity<List<WidgetDefinition>> list(
             @RequestParam(defaultValue = "false") boolean activeOnly) {
@@ -43,6 +52,11 @@ public class WidgetAdminController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * Replaces the SQL and uiSchema config of an existing widget.
+     * The {@code widgetId} from the path is authoritative; any widgetId in the body is overridden.
+     * Returns 204 No Content on success, 404 if the widget does not exist.
+     */
     @PutMapping("/{widgetId}")
     public ResponseEntity<Void> update(
             @PathVariable String widgetId,
@@ -51,18 +65,31 @@ public class WidgetAdminController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Sets {@code is_active = true} on the widget, making it visible on the dashboard.
+     * Returns 204 No Content, or 404 if the widget is not found.
+     */
     @PatchMapping("/{widgetId}/activate")
     public ResponseEntity<Void> activate(@PathVariable String widgetId) {
         widgetDefinitionService.activate(widgetId);
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Sets {@code is_active = false} on the widget, hiding it from the dashboard without
+     * deleting any data.  Returns 204 No Content, or 404 if the widget is not found.
+     */
     @PatchMapping("/{widgetId}/deactivate")
     public ResponseEntity<Void> deactivate(@PathVariable String widgetId) {
         widgetDefinitionService.deactivate(widgetId);
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Permanently removes the widget from WIDGET_MASTER, WIDGET_QUERY, WIDGET_CONFIG,
+     * and WIDGET_PAYLOAD.  This operation cannot be undone.
+     * Returns 204 No Content, or 404 if the widget is not found.
+     */
     @DeleteMapping("/{widgetId}")
     public ResponseEntity<Void> remove(@PathVariable String widgetId) {
         widgetDefinitionService.remove(widgetId);

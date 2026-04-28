@@ -33,6 +33,11 @@ public final class WidgetDeployRequest {
     private final String              sql;
     private final Map<String, Object> uiSchema;
 
+    /**
+     * Constructs the deploy request from the four top-level YAML fields after SnakeYAML parsing.
+     * Null values are allowed here; structural validation is performed later in
+     * {@code WidgetDeployService.validate()}.
+     */
     public WidgetDeployRequest(String widgetId,
                                String targetDb,
                                String sql,
@@ -43,8 +48,15 @@ public final class WidgetDeployRequest {
         this.uiSchema = uiSchema;
     }
 
+    /** Returns the widget identifier declared in the YAML (e.g., "WD_SALES_REGION"). */
     public String              getWidgetId() { return widgetId; }
+
+    /** Returns the target DataSource key declared in the YAML (must match the registry). */
     public String              getTargetDb() { return targetDb; }
+
+    /** Returns the raw SELECT SQL string from the YAML {@code sql:} block. */
     public String              getSql()      { return sql; }
+
+    /** Returns the uiSchema map parsed from the YAML {@code uiSchema:} block. */
     public Map<String, Object> getUiSchema() { return uiSchema; }
 }

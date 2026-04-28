@@ -18,10 +18,18 @@ public class AuditInterceptor implements HandlerInterceptor {
 
     private final JdbcTemplate metaJdbc;
 
+    /** Wraps the meta-DB DataSource in a JdbcTemplate for audit record persistence. */
     public AuditInterceptor(@Qualifier("metaDataSource") DataSource metaDataSource) {
         this.metaJdbc = new JdbcTemplate(metaDataSource);
     }
 
+    /**
+     * Records every completed HTTP request to the structured log and the AUDIT_LOG table.
+     *
+     * Called after the handler (controller) has finished, regardless of whether an
+     * exception was thrown.  Audit failures are caught and logged as errors so that
+     * an unreachable meta-DB never breaks the primary request flow.
+     */
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
                                 Object handler, Exception ex) {
@@ -43,8 +51,13 @@ public class AuditInterceptor implements HandlerInterceptor {
         }
     }
 
+    /**
+     * Extracts the true client IP address, honoring {@code X-Forwarded-For} headers
+     * set by reverse proxies and load balancers in financial-network deployments.
+     * When the header lists multiple addresses (proxy chain), the left-most entry
+     * is used as it represents the original client.
+     */
     private String resolveClientIp(HttpServletRequest request) {
-        // Respect reverse-proxy headers (nginx, L4/L7 LB in financial networks).
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
             return forwarded.split(",")[0].trim();

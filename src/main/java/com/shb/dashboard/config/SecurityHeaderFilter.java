@@ -12,6 +12,22 @@ import java.io.IOException;
 @Component
 public class SecurityHeaderFilter extends OncePerRequestFilter {
 
+    /**
+     * Attaches security-hardening response headers to every HTTP response and
+     * disables browser caching for all {@code /api/*} paths.
+     *
+     * <ul>
+     *   <li>{@code X-Content-Type-Options: nosniff} — prevents MIME-type sniffing
+     *       (e.g. a script disguised as an image).</li>
+     *   <li>{@code X-Frame-Options: DENY} — blocks iframe embedding to prevent clickjacking.</li>
+     *   <li>{@code Content-Security-Policy} — restricts resource loading to the same origin;
+     *       inline scripts and styles are allowed to support ECharts.</li>
+     *   <li>{@code Referrer-Policy: no-referrer} — suppresses the Referer header on
+     *       cross-origin requests.</li>
+     *   <li>{@code Cache-Control: no-store} on API paths — financial data must never be
+     *       persisted in browser or intermediate caches.</li>
+     * </ul>
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,

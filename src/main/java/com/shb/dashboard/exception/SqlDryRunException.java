@@ -17,6 +17,10 @@ public class SqlDryRunException extends RuntimeException {
     private final String widgetId;
     private final String dbError;
 
+    /**
+     * Creates the exception wrapping the underlying DB exception.
+     * Used when the pre-flight failure originates from a JDBC {@link java.sql.SQLException}.
+     */
     public SqlDryRunException(String widgetId, String dbError, Throwable cause) {
         super("SQL pre-flight failed for widget [" + widgetId + "]: " + dbError, cause);
         this.widgetId = widgetId;
@@ -33,6 +37,9 @@ public class SqlDryRunException extends RuntimeException {
         this.dbError  = dbError;
     }
 
+    /** Returns the widgetId whose SQL failed the pre-flight check. */
     public String getWidgetId() { return widgetId; }
+
+    /** Returns the raw database error message (or engine rejection reason) that caused the failure. */
     public String getDbError()  { return dbError; }
 }

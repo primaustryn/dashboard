@@ -24,14 +24,19 @@ public class WidgetEngineController {
 
     private final WidgetEngineService widgetEngineService;
 
+    /** Injects the engine service that resolves metadata, executes SQL, and assembles the response. */
     public WidgetEngineController(WidgetEngineService widgetEngineService) {
         this.widgetEngineService = widgetEngineService;
     }
 
     /**
-     * @param widgetId  identifier matching WIDGET_MASTER.widget_id
-     * @param params    optional filter parameters; bound to :named placeholders
-     *                  in the widget's SQL via NamedParameterJdbcTemplate
+     * Resolves and executes a widget, returning its uiSchema and query result data.
+     *
+     * @param widgetId  identifier matching {@code WIDGET_MASTER.widget_id}
+     * @param params    optional filter parameters; bound to {@code :named} placeholders
+     *                  in the widget's SQL via {@link org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate}
+     * @return          200 OK with the combined uiSchema + data payload, or 404 if the widget
+     *                  is not found / inactive
      */
     @GetMapping("/{widgetId}")
     public ResponseEntity<WidgetResponse> getWidget(

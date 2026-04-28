@@ -84,6 +84,12 @@ public class WidgetDeployService {
     @Value("${dashboard.widget.deploy.max-query-cost:10000.0}")
     private double maxQueryCost;
 
+    /**
+     * Injects all collaborators required by the deployment pipeline:
+     * the meta-DB JdbcTemplate for WIDGET_MASTER upserts, the payload and audit DAOs,
+     * the DataSource registry for dry-run and cost-gate queries, the ObjectMapper for
+     * uiSchema serialization, and the CacheManager for post-commit cache eviction.
+     */
     public WidgetDeployService(JdbcTemplate metaJdbc,
                                WidgetPayloadDao widgetPayloadDao,
                                WidgetAuditDao widgetAuditDao,
@@ -156,6 +162,11 @@ public class WidgetDeployService {
     // Step 1 — YAML parsing
     // =========================================================================
 
+    /**
+     * Parses the raw YAML string into a {@link WidgetDeployRequest} using SnakeYAML.
+     * Throws {@link IllegalArgumentException} for blank input, malformed YAML, or a YAML
+     * document that parses to null (e.g., an all-comment file).
+     */
     @SuppressWarnings("unchecked")
     private WidgetDeployRequest parseYaml(String rawYaml) {
         if (rawYaml == null || rawYaml.isBlank()) {
@@ -182,6 +193,12 @@ public class WidgetDeployService {
     // Step 2 — Structural validation
     // =========================================================================
 
+    /**
+     * Validates that all required YAML fields are present and well-formed:
+     * widgetId must match the {@code [A-Z][A-Z0-9_]{1,49}} pattern; targetDb must be a
+     * registered DataSource key; sql must be non-blank; uiSchema must contain a
+     * {@code visualization} key.  Throws {@link IllegalArgumentException} on the first failure.
+     */
     private void validate(WidgetDeployRequest req) {
         requireNonBlank(req.getWidgetId(), "widgetId");
         if (!req.getWidgetId().matches("[A-Z][A-Z0-9_]{1,49}")) {
@@ -207,6 +224,7 @@ public class WidgetDeployService {
         }
     }
 
+    /** Throws {@link IllegalArgumentException} if {@code value} is null or blank, naming the offending field. */
     private static void requireNonBlank(String value, String field) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("'" + field + "' is required");
@@ -429,6 +447,11 @@ public class WidgetDeployService {
         });
     }
 
+    /**
+     * Evicts the widgetMetadataCache and widgetDataCache entries for the given widget.
+     * Called from {@code afterCommit()} — any Redis failure here is caught by the caller
+     * and logged as a warning rather than propagated as a 500 error.
+     */
     private void evictWidgetCaches(String widgetId) {
         Cache metaCache = cacheManager.getCache(CacheConfig.METADATA_CACHE);
         Cache dataCache = cacheManager.getCache(CacheConfig.DATA_CACHE);
@@ -442,6 +465,12 @@ public class WidgetDeployService {
     // Step 6 helpers — persistence
     // =========================================================================
 
+    /**
+     * Inserts or updates the WIDGET_MASTER row for the given widget.
+     * Attempts an UPDATE first; falls back to INSERT if no row exists.
+     * This makes the deploy operation fully idempotent — re-deploying the same
+     * widget twice produces identical DB state.
+     */
     private void upsertMaster(String widgetId, String targetDb) {
         int updated = metaJdbc.update(
             "UPDATE WIDGET_MASTER SET target_db = ? WHERE widget_id = ?",
@@ -457,6 +486,11 @@ public class WidgetDeployService {
     // Encoding utility
     // =========================================================================
 
+    /**
+     * Base64-encodes a UTF-8 string using the standard (non-URL-safe) encoder.
+     * The resulting string contains only 7-bit ASCII characters, making it safe
+     * for storage in VARCHAR columns regardless of database character set.
+     */
     private static String encodeBase64(String text) {
         return Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8));
     }
